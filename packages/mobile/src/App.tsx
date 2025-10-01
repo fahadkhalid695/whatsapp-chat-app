@@ -1,31 +1,22 @@
-import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import React, { useEffect } from 'react';
+import { StatusBar } from 'react-native';
+import 'react-native-gesture-handler';
+import AppNavigator from './navigation/AppNavigator';
+import { useAuthStore } from './store/authStore';
 
 const App: React.FC = () => {
+  const { loadStoredAuth } = useAuthStore();
+
+  useEffect(() => {
+    loadStoredAuth();
+  }, []);
+
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>WhatsApp Chat Mobile App</Text>
-      <Text style={styles.subtitle}>Development environment ready!</Text>
-    </View>
+    <>
+      <StatusBar barStyle="dark-content" backgroundColor="#fff" />
+      <AppNavigator />
+    </>
   );
 };
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#f5f5f5',
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    marginBottom: 10,
-  },
-  subtitle: {
-    fontSize: 16,
-    color: '#666',
-  },
-});
 
 export default App;

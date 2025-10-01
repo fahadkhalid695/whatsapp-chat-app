@@ -93,7 +93,7 @@
   - Implement message input component with media attachment support
   - _Requirements: 1.1, 1.4, 2.1, 5.1, 10.1, 10.2_
 
-- [ ] 11. Develop mobile application frontend
+- [x] 11. Develop mobile application frontend
   - Set up React Native project with TypeScript and navigation
   - Implement authentication flow with phone number input and verification
   - Build conversation list screen with pull-to-refresh and infinite scroll
@@ -101,7 +101,7 @@
   - Implement camera integration for photo/video capture and sharing
   - _Requirements: 1.1, 1.4, 2.1, 5.5, 10.1, 10.2_
 
-- [ ] 12. Implement real-time synchronization
+- [-] 12. Implement real-time synchronization
   - Connect frontend applications to WebSocket server
   - Implement real-time message receiving and display updates
   - Build message status synchronization across devices
