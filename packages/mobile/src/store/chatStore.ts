@@ -8,9 +8,18 @@ interface ChatStore extends ChatState {
   sendMessage: (conversationId: string, content: string, type?: string) => Promise<void>;
   setActiveConversation: (conversationId: string | null) => void;
   addMessage: (message: Message) => void;
-  updateMessageStatus: (messageId: string, status: 'delivered' | 'read') => void;
+  updateMessageStatus: (messageId: string, status: 'delivered' | 'read', userId?: string) => void;
   setTypingUsers: (conversationId: string, userIds: string[]) => void;
+  addTypingUser: (conversationId: string, userId: string) => void;
+  removeTypingUser: (conversationId: string, userId: string) => void;
   markMessagesAsRead: (conversationId: string, messageIds: string[]) => Promise<void>;
+  replaceTemporaryMessage: (tempId: string, message: Message) => void;
+  markMessageFailed: (tempId: string, error: string) => void;
+  markMessageDeleted: (messageId: string) => void;
+  updateMessageContent: (messageId: string, content: any, editedAt: Date) => void;
+  updateUserPresence: (userId: string, isOnline: boolean, lastSeen?: Date) => void;
+  userPresence: Record<string, { isOnline: boolean; lastSeen?: Date }>;
+  temporaryMessages: Record<string, Message & { tempId: string; status: 'sending' | 'failed'; error?: string }>;
 }
 
 export const useChatStore = create<ChatStore>((set, get) => ({
@@ -19,6 +28,8 @@ export const useChatStore = create<ChatStore>((set, get) => ({
   activeConversation: null,
   isLoading: false,
   typingUsers: {},
+  userPresence: {},
+  temporaryMessages: {},
 
   loadConversations: async (refresh = false) => {
     if (!refresh && get().conversations.length > 0) return;
@@ -106,7 +117,7 @@ export const useChatStore = create<ChatStore>((set, get) => ({
     }));
   },
 
-  updateMessageStatus: (messageId: string, status: 'delivered' | 'read') => {
+  updateMessageStatus: (messageId: string, status: 'delivered' | 'read', userId?: string) => {
     set(state => {
       const newMessages = { ...state.messages };
       
@@ -117,7 +128,7 @@ export const useChatStore = create<ChatStore>((set, get) => ({
                 ...message,
                 [status === 'delivered' ? 'deliveredTo' : 'readBy']: [
                   ...message[status === 'delivered' ? 'deliveredTo' : 'readBy'],
-                  'current-user-id', // This should be the actual user ID
+                  userId || 'current-user-id',
                 ],
               }
             : message
@@ -126,6 +137,117 @@ export const useChatStore = create<ChatStore>((set, get) => ({
 
       return { messages: newMessages };
     });
+  },
+
+  addTypingUser: (conversationId: string, userId: string) => {
+    set(state => {
+      const currentTypingUsers = state.typingUsers[conversationId] || [];
+      if (!currentTypingUsers.includes(userId)) {
+        return {
+          typingUsers: {
+            ...state.typingUsers,
+            [conversationId]: [...currentTypingUsers, userId],
+          },
+        };
+      }
+      return state;
+    });
+  },
+
+  removeTypingUser: (conversationId: string, userId: string) => {
+    set(state => ({
+      typingUsers: {
+        ...state.typingUsers,
+        [conversationId]: (state.typingUsers[conversationId] || []).filter(id => id !== userId),
+      },
+    }));
+  },
+
+  replaceTemporaryMessage: (tempId: string, message: Message) => {
+    set(state => {
+      const newMessages = { ...state.messages };
+      const newTemporaryMessages = { ...state.temporaryMessages };
+      
+      // Remove from temporary messages
+      delete newTemporaryMessages[tempId];
+      
+      // Add real message
+      const conversationMessages = newMessages[message.conversationId] || [];
+      const tempMessageIndex = conversationMessages.findIndex(msg => 
+        'tempId' in msg && (msg as any).tempId === tempId
+      );
+      
+      if (tempMessageIndex !== -1) {
+        // Replace temporary message with real message
+        newMessages[message.conversationId] = [
+          ...conversationMessages.slice(0, tempMessageIndex),
+          message,
+          ...conversationMessages.slice(tempMessageIndex + 1),
+        ];
+      } else {
+        // Add message if temp message not found
+        newMessages[message.conversationId] = [...conversationMessages, message];
+      }
+
+      return { 
+        messages: newMessages, 
+        temporaryMessages: newTemporaryMessages 
+      };
+    });
+  },
+
+  markMessageFailed: (tempId: string, error: string) => {
+    set(state => ({
+      temporaryMessages: {
+        ...state.temporaryMessages,
+        [tempId]: {
+          ...state.temporaryMessages[tempId],
+          status: 'failed',
+          error,
+        },
+      },
+    }));
+  },
+
+  markMessageDeleted: (messageId: string) => {
+    set(state => {
+      const newMessages = { ...state.messages };
+      
+      Object.keys(newMessages).forEach(conversationId => {
+        newMessages[conversationId] = newMessages[conversationId].map(message =>
+          message.id === messageId
+            ? { ...message, isDeleted: true }
+            : message
+        );
+      });
+
+      return { messages: newMessages };
+    });
+  },
+
+  updateMessageContent: (messageId: string, content: any, editedAt: Date) => {
+    set(state => {
+      const newMessages = { ...state.messages };
+      
+      Object.keys(newMessages).forEach(conversationId => {
+        newMessages[conversationId] = newMessages[conversationId].map(message =>
+          message.id === messageId
+            ? { ...message, content, editedAt }
+            : message
+        );
+      });
+
+      return { messages: newMessages };
+    });
+  },
+
+  updateUserPresence: (userId: string, isOnline: boolean, lastSeen?: Date) => {
+    set(state => ({
+      userPresence: {
+        ...state.userPresence,
+        [userId]: { isOnline, lastSeen },
+      },
+    }));
   },
 
   setTypingUsers: (conversationId: string, userIds: string[]) => {

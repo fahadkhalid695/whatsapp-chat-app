@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useCallback, useEffect } from 'react';
 import {
   Box,
   TextField,
@@ -14,11 +14,12 @@ import {
   AttachFile,
   Photo,
   Videocam,
-
   Description,
   EmojiEmotions,
 } from '@mui/icons-material';
 import { MessageContent, MessageType } from '../types';
+import { socketService } from '../services/socket';
+import { useChatStore } from '../store/chatStore';
 
 interface MessageInputProps {
   onSendMessage: (content: MessageContent, type: MessageType) => void;
@@ -31,19 +32,87 @@ const MessageInput: React.FC<MessageInputProps> = ({
   disabled = false,
   isLoading = false,
 }) => {
+  const { activeConversationId } = useChatStore();
   const [message, setMessage] = useState('');
   const [attachMenuAnchor, setAttachMenuAnchor] = useState<null | HTMLElement>(null);
   const [isUploading, setIsUploading] = useState(false);
+  const [isTyping, setIsTyping] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
   const videoInputRef = useRef<HTMLInputElement>(null);
+  const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const handleSendMessage = () => {
     if (message.trim() && !disabled && !isLoading) {
+      // Stop typing indicator
+      handleStopTyping();
+      
       onSendMessage({ text: message.trim() }, 'text');
       setMessage('');
     }
   };
+
+  const handleStartTyping = useCallback(() => {
+    if (!activeConversationId || isTyping) return;
+    
+    setIsTyping(true);
+    socketService.startTyping(activeConversationId);
+  }, [activeConversationId, isTyping]);
+
+  const handleStopTyping = useCallback(() => {
+    if (!activeConversationId || !isTyping) return;
+    
+    setIsTyping(false);
+    socketService.stopTyping(activeConversationId);
+    
+    if (typingTimeoutRef.current) {
+      clearTimeout(typingTimeoutRef.current);
+      typingTimeoutRef.current = null;
+    }
+  }, [activeConversationId, isTyping]);
+
+  const handleMessageChange = (value: string) => {
+    setMessage(value);
+    
+    if (value.trim()) {
+      // Start typing if not already typing
+      if (!isTyping) {
+        handleStartTyping();
+      }
+      
+      // Reset the typing timeout
+      if (typingTimeoutRef.current) {
+        clearTimeout(typingTimeoutRef.current);
+      }
+      
+      // Stop typing after 3 seconds of inactivity
+      typingTimeoutRef.current = setTimeout(() => {
+        handleStopTyping();
+      }, 3000);
+    } else {
+      // Stop typing if message is empty
+      handleStopTyping();
+    }
+  };
+
+  // Cleanup typing timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (typingTimeoutRef.current) {
+        clearTimeout(typingTimeoutRef.current);
+      }
+      if (isTyping && activeConversationId) {
+        socketService.stopTyping(activeConversationId);
+      }
+    };
+  }, [isTyping, activeConversationId]);
+
+  // Stop typing when conversation changes
+  useEffect(() => {
+    if (isTyping) {
+      handleStopTyping();
+    }
+  }, [activeConversationId]);
 
   const handleKeyPress = (event: React.KeyboardEvent) => {
     if (event.key === 'Enter' && !event.shiftKey) {
@@ -217,7 +286,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
         maxRows={4}
         placeholder="Type a message..."
         value={message}
-        onChange={(e) => setMessage(e.target.value)}
+        onChange={(e) => handleMessageChange(e.target.value)}
         onKeyPress={handleKeyPress}
         disabled={disabled || isLoading}
         variant="outlined"

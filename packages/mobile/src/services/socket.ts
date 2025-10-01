@@ -14,7 +14,8 @@ class SocketService {
     const token = useAuthStore.getState().token;
     if (!token) return;
 
-    const SOCKET_URL = import.meta.env.VITE_WS_URL || 'ws://localhost:3001';
+    // Use environment variable or fallback to localhost
+    const SOCKET_URL = process.env.REACT_APP_WS_URL || 'ws://localhost:3001';
     
     this.socket = io(SOCKET_URL, {
       auth: { token },
@@ -77,7 +78,9 @@ class SocketService {
 
     this.socket.on('message-sent', (data: { tempId?: string; message: Message }) => {
       console.log('Message sent confirmation:', data);
+      // Update local message with server-generated ID
       if (data.tempId) {
+        // Replace temporary message with server message
         useChatStore.getState().replaceTemporaryMessage(data.tempId, data.message);
       }
     });
@@ -179,6 +182,7 @@ class SocketService {
       }, delay);
     } else {
       console.error('Max reconnection attempts reached');
+      // Could emit an event here to notify the UI about connection failure
     }
   }
 
@@ -194,40 +198,75 @@ class SocketService {
     }, 30000); // Send heartbeat every 30 seconds
   }
 
+  // Public methods for interacting with the socket
   joinConversation(conversationId: string) {
-    if (this.socket) {
+    if (this.socket?.connected) {
       this.socket.emit('join-conversation', conversationId);
     }
   }
 
   leaveConversation(conversationId: string) {
-    if (this.socket) {
+    if (this.socket?.connected) {
       this.socket.emit('leave-conversation', conversationId);
     }
   }
 
-  sendMessage(message: Omit<Message, 'id' | 'timestamp' | 'deliveredTo' | 'readBy'>) {
-    if (this.socket) {
-      this.socket.emit('send-message', message);
+  sendMessage(message: Omit<Message, 'id' | 'timestamp' | 'deliveredTo' | 'readBy'>, tempId?: string) {
+    if (this.socket?.connected) {
+      this.socket.emit('send-message', { ...message, tempId });
     }
   }
 
   startTyping(conversationId: string) {
-    if (this.socket) {
-      this.socket.emit('typing-start', conversationId);
+    if (this.socket?.connected) {
+      this.socket.emit('typing-start', { conversationId });
     }
   }
 
   stopTyping(conversationId: string) {
-    if (this.socket) {
-      this.socket.emit('typing-stop', conversationId);
+    if (this.socket?.connected) {
+      this.socket.emit('typing-stop', { conversationId });
     }
   }
 
-  markAsRead(messageIds: string[]) {
-    if (this.socket) {
-      this.socket.emit('mark-read', messageIds);
+  markAsRead(messageIds: string[], conversationId: string) {
+    if (this.socket?.connected) {
+      this.socket.emit('mark-read', { messageIds, conversationId });
     }
+  }
+
+  deleteMessage(messageId: string, conversationId: string) {
+    if (this.socket?.connected) {
+      this.socket.emit('delete-message', { messageId, conversationId });
+    }
+  }
+
+  editMessage(messageId: string, content: any, conversationId: string) {
+    if (this.socket?.connected) {
+      this.socket.emit('edit-message', { messageId, content, conversationId });
+    }
+  }
+
+  getPresence(userIds: string[]) {
+    if (this.socket?.connected) {
+      this.socket.emit('get-presence', { userIds });
+    }
+  }
+
+  getTypingUsers(conversationId: string) {
+    if (this.socket?.connected) {
+      this.socket.emit('get-typing-users', { conversationId });
+    }
+  }
+
+  getMessageStatus(messageId: string) {
+    if (this.socket?.connected) {
+      this.socket.emit('get-message-status', { messageId });
+    }
+  }
+
+  isConnected(): boolean {
+    return this.socket?.connected || false;
   }
 }
 

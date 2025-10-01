@@ -15,6 +15,7 @@ import { RootStackParamList, Message } from '../types';
 import { useChatStore } from '../store/chatStore';
 import { useAuthStore } from '../store/authStore';
 import { mediaService } from '../services/media';
+import { socketService } from '../services/socket';
 import MessageBubble from '../components/MessageBubble';
 import MessageInput from '../components/MessageInput';
 import MediaPicker from '../components/MediaPicker';
@@ -53,9 +54,14 @@ const ChatScreen: React.FC = () => {
   useEffect(() => {
     setActiveConversation(conversationId);
     loadMessages(conversationId);
+    
+    // Join conversation for real-time updates
+    socketService.joinConversation(conversationId);
 
     return () => {
       setActiveConversation(null);
+      // Leave conversation when screen unmounts
+      socketService.leaveConversation(conversationId);
     };
   }, [conversationId]);
 
@@ -93,13 +99,11 @@ const ChatScreen: React.FC = () => {
   };
 
   const handleStartTyping = () => {
-    // In a real app, you would emit a typing event via WebSocket
-    console.log('User started typing');
+    socketService.startTyping(conversationId);
   };
 
   const handleStopTyping = () => {
-    // In a real app, you would emit a stop typing event via WebSocket
-    console.log('User stopped typing');
+    socketService.stopTyping(conversationId);
   };
 
   const renderMessage = ({ item, index }: { item: Message; index: number }) => {

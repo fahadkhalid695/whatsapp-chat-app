@@ -41,6 +41,8 @@ const ChatPage: React.FC = () => {
     addMessage,
     setConversations,
     isLoading,
+    typingUsers,
+    userPresence,
   } = useChatStore();
 
   const [drawerOpen, setDrawerOpen] = useState(!isMobile);
@@ -102,6 +104,11 @@ const ChatPage: React.FC = () => {
   const conversationMessages = activeConversationId ? messages[activeConversationId] || [] : [];
 
   const handleConversationSelect = (conversationId: string) => {
+    // Leave previous conversation
+    if (activeConversationId) {
+      socketService.leaveConversation(activeConversationId);
+    }
+    
     setActiveConversation(conversationId);
     socketService.joinConversation(conversationId);
     
@@ -113,8 +120,9 @@ const ChatPage: React.FC = () => {
   const handleSendMessage = (content: MessageContent, type: MessageType) => {
     if (!activeConversationId || !user) return;
 
+    const tempId = `temp_${Date.now()}`;
     const newMessage: Message = {
-      id: `msg_${Date.now()}`,
+      id: tempId,
       conversationId: activeConversationId,
       senderId: user.id,
       content,
@@ -125,14 +133,17 @@ const ChatPage: React.FC = () => {
       isDeleted: false,
     };
 
+    // Add temporary message to UI
     addMessage(newMessage);
+    
+    // Send via socket with temp ID for tracking
     socketService.sendMessage({
       conversationId: activeConversationId,
       senderId: user.id,
       content,
       type,
       isDeleted: false,
-    });
+    }, tempId);
   };
 
   const handleProfileMenuOpen = (event: React.MouseEvent<HTMLElement>) => {
@@ -167,6 +178,48 @@ const ChatPage: React.FC = () => {
       return <Group />;
     }
     return <Person />;
+  };
+
+  const getPresenceText = (conversation: Conversation): string => {
+    if (conversation.type === 'group') {
+      return `${conversation.participants.length} participants`;
+    }
+    
+    const otherParticipantId = conversation.participants.find(id => id !== user?.id);
+    if (!otherParticipantId) return 'Unknown';
+    
+    const presence = userPresence[otherParticipantId];
+    if (!presence) return 'Unknown';
+    
+    if (presence.isOnline) {
+      return 'Online';
+    } else if (presence.lastSeen) {
+      const now = new Date();
+      const lastSeen = new Date(presence.lastSeen);
+      const diffMinutes = Math.floor((now.getTime() - lastSeen.getTime()) / (1000 * 60));
+      
+      if (diffMinutes < 1) return 'Last seen just now';
+      if (diffMinutes < 60) return `Last seen ${diffMinutes}m ago`;
+      
+      const diffHours = Math.floor(diffMinutes / 60);
+      if (diffHours < 24) return `Last seen ${diffHours}h ago`;
+      
+      const diffDays = Math.floor(diffHours / 24);
+      return `Last seen ${diffDays}d ago`;
+    }
+    
+    return 'Last seen recently';
+  };
+
+  const getTypingText = (): string => {
+    if (!activeConversationId) return '';
+    
+    const typing = typingUsers[activeConversationId] || [];
+    if (typing.length === 0) return '';
+    
+    if (typing.length === 1) return 'typing...';
+    if (typing.length === 2) return 'typing...';
+    return `${typing.length} people typing...`;
   };
 
   const drawerContent = (
@@ -279,7 +332,7 @@ const ChatPage: React.FC = () => {
                   <Typography variant="caption" color="text.secondary">
                     {activeConversation.type === 'group' 
                       ? `${activeConversation.participants.length} participants`
-                      : 'Online'
+                      : getPresenceText(activeConversation)
                     }
                   </Typography>
                 </Box>
