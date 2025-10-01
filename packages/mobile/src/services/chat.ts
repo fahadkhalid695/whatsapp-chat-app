@@ -4,14 +4,24 @@ import { apiClient } from './api';
 class ChatService {
   async getConversations(): Promise<Conversation[]> {
     const response = await apiClient.get('/conversations');
-    return response.data;
+    
+    if (!response.data.success) {
+      throw new Error(response.data.error || 'Failed to get conversations');
+    }
+    
+    return response.data.data;
   }
 
   async getMessages(conversationId: string, limit = 50, offset = 0): Promise<Message[]> {
     const response = await apiClient.get(`/conversations/${conversationId}/messages`, {
       params: { limit, offset },
     });
-    return response.data;
+    
+    if (!response.data.success) {
+      throw new Error(response.data.error || 'Failed to get messages');
+    }
+    
+    return response.data.data;
   }
 
   async sendMessage(conversationId: string, content: string, type = 'text'): Promise<Message> {
@@ -19,7 +29,12 @@ class ChatService {
       content: { text: content },
       type,
     });
-    return response.data;
+    
+    if (!response.data.success) {
+      throw new Error(response.data.error || 'Failed to send message');
+    }
+    
+    return response.data.data;
   }
 
   async markMessagesAsRead(messageIds: string[]): Promise<void> {
@@ -27,19 +42,34 @@ class ChatService {
   }
 
   async createConversation(participantIds: string[], type: 'direct' | 'group' = 'direct', name?: string): Promise<Conversation> {
-    const response = await apiClient.post('/conversations', {
-      participantIds,
+    const requestData: any = {
+      participants: participantIds,
       type,
-      name,
-    });
-    return response.data;
+    };
+    
+    if (name) {
+      requestData.name = name;
+    }
+    
+    const response = await apiClient.post('/conversations', requestData);
+    
+    if (!response.data.success) {
+      throw new Error(response.data.error || 'Failed to create conversation');
+    }
+    
+    return response.data.data;
   }
 
   async searchMessages(query: string): Promise<Message[]> {
     const response = await apiClient.get('/messages/search', {
       params: { q: query },
     });
-    return response.data;
+    
+    if (!response.data.success) {
+      throw new Error(response.data.error || 'Failed to search messages');
+    }
+    
+    return response.data.data;
   }
 }
 

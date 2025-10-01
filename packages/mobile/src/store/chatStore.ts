@@ -6,6 +6,7 @@ interface ChatStore extends ChatState {
   loadConversations: (refresh?: boolean) => Promise<void>;
   loadMessages: (conversationId: string, refresh?: boolean) => Promise<void>;
   sendMessage: (conversationId: string, content: string, type?: string) => Promise<void>;
+  createConversation: (participantIds: string[], type?: 'direct' | 'group', name?: string) => Promise<Conversation>;
   setActiveConversation: (conversationId: string | null) => void;
   addMessage: (message: Message) => void;
   updateMessageStatus: (messageId: string, status: 'delivered' | 'read', userId?: string) => void;
@@ -88,6 +89,22 @@ export const useChatStore = create<ChatStore>((set, get) => ({
       }));
     } catch (error) {
       console.error('Send message error:', error);
+      throw error;
+    }
+  },
+
+  createConversation: async (participantIds: string[], type = 'direct', name?: string) => {
+    try {
+      const conversation = await chatService.createConversation(participantIds, type, name);
+      
+      // Add to conversations list
+      set(state => ({
+        conversations: [conversation, ...state.conversations],
+      }));
+
+      return conversation;
+    } catch (error) {
+      console.error('Create conversation error:', error);
       throw error;
     }
   },
