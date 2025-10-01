@@ -3,6 +3,8 @@ import { AuthenticatedSocket } from '../index';
 import { redisClient } from '../redis';
 import { MessageService } from '../../services/message';
 import { ConversationService } from '../../services/conversation';
+import { SyncService } from '../../services/sync';
+import { OfflineQueueService } from '../../services/offlineQueue';
 import { SendMessageRequest } from '../../types';
 
 export function messageHandlers(
@@ -119,14 +121,14 @@ export function messageHandlers(
   });
 
   // Mark messages as read
-  socket.on('mark-read', async (data: { messageIds: string[]; conversationId: string }) => {
+  socket.on('mark-read', async (data: { messageIds: string[]; conversationId: string; deviceId?: string }) => {
     try {
       if (!data.messageIds || !Array.isArray(data.messageIds) || data.messageIds.length === 0) {
         return;
       }
 
-      // Mark messages as read in database
-      await MessageService.markAsRead(socket.userId, data.messageIds);
+      // Mark messages as read in database and sync across devices
+      await SyncService.syncReadReceipts(socket.userId, data.messageIds, data.deviceId);
 
       // Track read status in Redis
       for (const messageId of data.messageIds) {

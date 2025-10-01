@@ -1,6 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { User } from '../types';
 import { apiClient } from './api';
+import { syncService } from './sync';
 
 interface LoginResponse {
   verificationId: string;
@@ -23,6 +24,14 @@ class AuthService {
       verificationId,
       code,
     });
+    
+    // Register device for sync after successful authentication
+    try {
+      await syncService.registerDevice();
+    } catch (error) {
+      console.error('Failed to register device for sync:', error);
+    }
+    
     return response.data;
   }
 
@@ -31,6 +40,17 @@ class AuthService {
       displayName,
       profilePicture,
     });
+    
+    // Sync profile update across devices
+    try {
+      await syncService.syncProfileUpdate({
+        displayName,
+        profilePicture,
+      });
+    } catch (error) {
+      console.error('Failed to sync profile update:', error);
+    }
+    
     return response.data;
   }
 

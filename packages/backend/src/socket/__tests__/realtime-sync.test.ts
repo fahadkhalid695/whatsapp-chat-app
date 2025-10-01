@@ -6,7 +6,6 @@ import { SocketServer } from '../index';
 
 describe('Real-time Synchronization', () => {
   let httpServer: HTTPServer;
-  let socketServerInstance: SocketServer;
   let clientSocket1: ClientSocket;
   let clientSocket2: ClientSocket;
   let token1: string;
@@ -14,7 +13,7 @@ describe('Real-time Synchronization', () => {
 
   beforeAll((done) => {
     httpServer = new HTTPServer();
-    socketServerInstance = new SocketServer(httpServer);
+    new SocketServer(httpServer);
     
     // Create test tokens
     token1 = jwt.sign({ userId: 'user1', phoneNumber: '+1234567890' }, config.jwt.secret);

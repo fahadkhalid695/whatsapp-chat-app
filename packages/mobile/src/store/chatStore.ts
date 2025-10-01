@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { Conversation, Message, ChatState } from '../types';
 import { chatService } from '../services/chat';
+import { syncService } from '../services/sync';
 
 interface ChatStore extends ChatState {
   loadConversations: (refresh?: boolean) => Promise<void>;
@@ -20,6 +21,7 @@ interface ChatStore extends ChatState {
   markMessageDeleted: (messageId: string) => void;
   updateMessageContent: (messageId: string, content: any, editedAt: Date) => void;
   updateUserPresence: (userId: string, isOnline: boolean, lastSeen?: Date) => void;
+  syncConversationHistory: () => Promise<void>;
   userPresence: Record<string, { isOnline: boolean; lastSeen?: Date }>;
   temporaryMessages: Record<string, Message & { tempId: string; status: 'sending' | 'failed'; error?: string }>;
 }
@@ -285,6 +287,9 @@ export const useChatStore = create<ChatStore>((set, get) => ({
     try {
       await chatService.markMessagesAsRead(messageIds);
       
+      // Sync read receipts across devices
+      await syncService.syncReadReceipts(messageIds);
+      
       set(state => {
         const updatedMessages = state.messages[conversationId]?.map(message =>
           messageIds.includes(message.id)
@@ -304,6 +309,41 @@ export const useChatStore = create<ChatStore>((set, get) => ({
       });
     } catch (error) {
       console.error('Mark messages as read error:', error);
+    }
+  },
+
+  syncConversationHistory: async () => {
+    try {
+      set({ isLoading: true });
+      const syncData = await syncService.syncConversationHistory();
+      
+      // Update conversations with synced data
+      set((state) => ({
+        conversations: syncData.conversations.map(conv => ({
+          id: conv.id,
+          type: conv.type,
+          name: conv.name,
+          participants: conv.participants,
+          admins: conv.admins,
+          lastActivity: new Date(conv.lastActivity),
+          isArchived: conv.isArchived,
+          isMuted: false, // This would come from user preferences
+          createdAt: new Date(conv.createdAt),
+          updatedAt: new Date(conv.updatedAt),
+        })),
+        messages: syncData.conversations.reduce((acc, conv) => {
+          acc[conv.id] = conv.messages.map(msg => ({
+            ...msg,
+            timestamp: new Date(msg.timestamp),
+            editedAt: msg.editedAt ? new Date(msg.editedAt) : undefined,
+          }));
+          return acc;
+        }, {} as Record<string, Message[]>),
+        isLoading: false,
+      }));
+    } catch (error) {
+      console.error('Failed to sync conversation history:', error);
+      set({ isLoading: false });
     }
   },
 }));

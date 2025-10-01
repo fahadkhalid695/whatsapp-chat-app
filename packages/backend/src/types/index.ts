@@ -399,3 +399,70 @@ export interface UseRecoveryCodeRequest {
   recoveryCode: string;
   newDisplayName?: string;
 }
+
+// Cross-platform synchronization interfaces
+export interface DeviceSession {
+  id: string;
+  userId: string;
+  deviceId: string;
+  platform: 'web' | 'mobile';
+  userAgent?: string;
+  appVersion?: string;
+  isActive: boolean;
+  lastActivity: Date;
+  lastSync?: Date;
+  createdAt: Date;
+}
+
+export interface SyncData {
+  conversations: ConversationSyncData[];
+  syncTimestamp: Date;
+  hasMore: boolean;
+}
+
+export interface ConversationSyncData extends Omit<Conversation, 'lastMessage'> {
+  messages: MessageSyncData[];
+  unreadCount: number;
+}
+
+export interface MessageSyncData extends Message {
+  // Additional sync-specific fields can be added here
+}
+
+export interface OfflineMessage {
+  id: string;
+  userId: string;
+  deviceId: string;
+  messageData: any;
+  queuedAt: Date;
+  attempts: number;
+  maxAttempts: number;
+  nextRetry: Date;
+}
+
+// Request/Response interfaces for sync operations
+export interface SyncConversationHistoryRequest {
+  deviceId: string;
+  lastSyncTimestamp?: Date;
+}
+
+export interface RegisterDeviceSessionRequest {
+  deviceId: string;
+  platform: 'web' | 'mobile';
+  userAgent?: string;
+  appVersion?: string;
+}
+
+export interface SyncReadReceiptsRequest {
+  messageIds: string[];
+  deviceId?: string;
+}
+
+export interface SyncProfileUpdateRequest {
+  updates: {
+    displayName?: string;
+    profilePicture?: string;
+    status?: string;
+  };
+  deviceId?: string;
+}

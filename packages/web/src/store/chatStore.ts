@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { ChatState, Conversation, Message, Contact } from '../types';
+import { syncService } from '../services/sync';
 
 interface ChatStore extends ChatState {
   setConversations: (conversations: Conversation[] | ((prev: Conversation[]) => Conversation[])) => void;
@@ -20,6 +21,8 @@ interface ChatStore extends ChatState {
   addTypingUser: (conversationId: string, userId: string) => void;
   removeTypingUser: (conversationId: string, userId: string) => void;
   updateUserPresence: (userId: string, isOnline: boolean, lastSeen?: Date) => void;
+  syncConversationHistory: () => Promise<void>;
+  markMessagesAsRead: (messageIds: string[]) => Promise<void>;
   typingUsers: Record<string, string[]>;
   userPresence: Record<string, { isOnline: boolean; lastSeen?: Date }>;
   temporaryMessages: Record<string, Message & { tempId: string; status: 'sending' | 'failed'; error?: string }>;
@@ -201,4 +204,47 @@ export const useChatStore = create<ChatStore>((set) => ({
       [userId]: { isOnline, lastSeen },
     },
   })),
+
+  syncConversationHistory: async () => {
+    try {
+      set({ isLoading: true });
+      const syncData = await syncService.syncConversationHistory();
+      
+      // Update conversations with synced data
+      set((state) => ({
+        conversations: syncData.conversations.map(conv => ({
+          id: conv.id,
+          type: conv.type,
+          name: conv.name,
+          participants: conv.participants,
+          admins: conv.admins,
+          lastActivity: new Date(conv.lastActivity),
+          isArchived: conv.isArchived,
+          isMuted: false, // This would come from user preferences
+          createdAt: new Date(conv.createdAt),
+          updatedAt: new Date(conv.updatedAt),
+        })),
+        messages: syncData.conversations.reduce((acc, conv) => {
+          acc[conv.id] = conv.messages.map(msg => ({
+            ...msg,
+            timestamp: new Date(msg.timestamp),
+            editedAt: msg.editedAt ? new Date(msg.editedAt) : undefined,
+          }));
+          return acc;
+        }, {} as Record<string, Message[]>),
+        isLoading: false,
+      }));
+    } catch (error) {
+      console.error('Failed to sync conversation history:', error);
+      set({ isLoading: false });
+    }
+  },
+
+  markMessagesAsRead: async (messageIds: string[]) => {
+    try {
+      await syncService.syncReadReceipts(messageIds);
+    } catch (error) {
+      console.error('Failed to sync read receipts:', error);
+    }
+  },
 }));

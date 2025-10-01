@@ -11,12 +11,14 @@ import messageRoutes from './routes/messages';
 import mediaRoutes from './routes/media';
 import notificationRoutes from './routes/notifications';
 import securityRoutes from './routes/security';
+import syncRoutes from './routes/sync';
 import { initializeSocketServer } from './socket';
 import { redisClient } from './socket/redis';
 import { setupTypingCleanup } from './socket/handlers/typingHandlers';
 import { db } from './database/connection';
 import { createNotificationService } from './services/notification';
 import { CronService } from './services/cron';
+import { OfflineQueueService } from './services/offlineQueue';
 import { logger } from './utils/logger';
 
 const app = express();
@@ -50,6 +52,7 @@ app.use('/api/messages', messageRoutes);
 app.use('/api/media', mediaRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/security', securityRoutes);
+app.use('/api/sync', syncRoutes);
 
 // 404 handler
 app.use('*', (req, res) => {
@@ -90,6 +93,9 @@ async function startServer() {
     // Start cron jobs
     CronService.startAll();
     
+    // Initialize offline queue service
+    OfflineQueueService.initialize();
+    
     // Start HTTP server
     const PORT = config.server.port;
     const HOST = config.server.host;
@@ -108,6 +114,7 @@ async function startServer() {
     process.on('SIGTERM', async () => {
       logger.info('SIGTERM received, shutting down gracefully');
       CronService.stopAll();
+      OfflineQueueService.stop();
       const notificationService = require('./services/notification').getNotificationService();
       notificationService.shutdown();
       await redisClient.disconnect();
@@ -121,6 +128,7 @@ async function startServer() {
     process.on('SIGINT', async () => {
       logger.info('SIGINT received, shutting down gracefully');
       CronService.stopAll();
+      OfflineQueueService.stop();
       const notificationService = require('./services/notification').getNotificationService();
       notificationService.shutdown();
       await redisClient.disconnect();

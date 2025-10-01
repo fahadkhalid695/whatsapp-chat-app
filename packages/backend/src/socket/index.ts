@@ -56,12 +56,46 @@ export class SocketServer {
   }
 
   private setupEventHandlers() {
-    this.io.on('connection', (socket: Socket) => {
+    this.io.on('connection', async (socket: Socket) => {
       const authSocket = socket as AuthenticatedSocket;
       console.log(`User ${authSocket.userId} connected with socket ${socket.id}`);
 
       // Track connected user
       this.addUserConnection(authSocket.userId, socket.id);
+
+      // Handle device registration for sync
+      socket.on('register-device', async (data: { deviceId: string; platform: 'web' | 'mobile'; userAgent?: string; appVersion?: string }) => {
+        try {
+          const { SyncService } = await import('../services/sync');
+          const { OfflineQueueService } = await import('../services/offlineQueue');
+          
+          // Register device session
+          const deviceInfo: { platform: 'web' | 'mobile'; userAgent?: string; appVersion?: string } = {
+            platform: data.platform,
+          };
+          
+          if (data.userAgent) {
+            deviceInfo.userAgent = data.userAgent;
+          }
+          
+          if (data.appVersion) {
+            deviceInfo.appVersion = data.appVersion;
+          }
+          
+          await SyncService.registerDeviceSession(authSocket.userId, data.deviceId, deviceInfo);
+
+          // Deliver queued messages
+          await OfflineQueueService.deliverQueuedMessages(authSocket.userId, data.deviceId);
+
+          socket.emit('device-registered', { 
+            deviceId: data.deviceId,
+            timestamp: new Date() 
+          });
+        } catch (error) {
+          console.error('Error registering device:', error);
+          socket.emit('device-registration-error', { error: 'Failed to register device' });
+        }
+      });
 
       // Set up event handlers
       messageHandlers(authSocket, this.io, this.connectedUsers);
@@ -69,7 +103,7 @@ export class SocketServer {
       typingHandlers(authSocket, this.io, this.connectedUsers);
 
       // Handle disconnection
-      socket.on('disconnect', () => {
+      socket.on('disconnect', async () => {
         console.log(`User ${authSocket.userId} disconnected from socket ${socket.id}`);
         this.removeUserConnection(authSocket.userId, socket.id);
       });
