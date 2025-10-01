@@ -268,3 +268,41 @@ export interface VerificationSession {
   attempts: number;
   createdAt: Date;
 }
+
+// Media handling interfaces
+export interface MediaFile {
+  id: string;
+  originalName: string;
+  mimeType: string;
+  size: number;
+  url: string;
+  thumbnailUrl?: string | undefined;
+  userId: string;
+  createdAt: Date;
+}
+
+export interface MediaUploadRequest {
+  file: Express.Multer.File;
+  userId: string;
+}
+
+export interface MediaUploadResponse {
+  mediaId: string;
+  url: string;
+  thumbnailUrl?: string | undefined;
+  fileName: string;
+  fileSize: number;
+  mimeType: string;
+}
+
+export interface ThumbnailGenerationOptions {
+  width?: number;
+  height?: number;
+  quality?: number;
+}
+
+export interface MediaValidationConfig {
+  maxFileSize: number;
+  allowedMimeTypes: string[];
+  allowedExtensions: string[];
+}

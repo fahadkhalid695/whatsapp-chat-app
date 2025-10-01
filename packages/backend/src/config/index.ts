@@ -74,6 +74,61 @@ export const config = {
     origin: process.env.CORS_ORIGIN || 'http://localhost:3001',
     credentials: true,
   },
+
+  // Media storage configuration
+  media: {
+    storage: {
+      type: process.env.MEDIA_STORAGE_TYPE || 'local', // 'local' or 's3'
+      localPath: process.env.MEDIA_LOCAL_PATH || './uploads',
+      s3: {
+        accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+        secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+        region: process.env.AWS_REGION || 'us-east-1',
+        bucket: process.env.S3_BUCKET_NAME || 'whatsapp-chat-media',
+        endpoint: process.env.S3_ENDPOINT, // For S3-compatible services
+      },
+    },
+    validation: {
+      maxFileSize: parseInt(process.env.MAX_FILE_SIZE || '10485760', 10), // 10MB
+      image: {
+        maxFileSize: parseInt(process.env.MAX_IMAGE_SIZE || '5242880', 10), // 5MB
+        allowedMimeTypes: ['image/jpeg', 'image/png', 'image/gif', 'image/webp'],
+        allowedExtensions: ['.jpg', '.jpeg', '.png', '.gif', '.webp'],
+      },
+      video: {
+        maxFileSize: parseInt(process.env.MAX_VIDEO_SIZE || '52428800', 10), // 50MB
+        allowedMimeTypes: ['video/mp4', 'video/quicktime', 'video/webm'],
+        allowedExtensions: ['.mp4', '.mov', '.webm'],
+      },
+      audio: {
+        maxFileSize: parseInt(process.env.MAX_AUDIO_SIZE || '10485760', 10), // 10MB
+        allowedMimeTypes: ['audio/mpeg', 'audio/wav', 'audio/ogg', 'audio/webm'],
+        allowedExtensions: ['.mp3', '.wav', '.ogg', '.webm'],
+      },
+      document: {
+        maxFileSize: parseInt(process.env.MAX_DOCUMENT_SIZE || '10485760', 10), // 10MB
+        allowedMimeTypes: [
+          'application/pdf',
+          'application/msword',
+          'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+          'text/plain',
+        ],
+        allowedExtensions: ['.pdf', '.doc', '.docx', '.txt'],
+      },
+    },
+    thumbnail: {
+      image: {
+        width: parseInt(process.env.THUMBNAIL_WIDTH || '300', 10),
+        height: parseInt(process.env.THUMBNAIL_HEIGHT || '300', 10),
+        quality: parseInt(process.env.THUMBNAIL_QUALITY || '80', 10),
+      },
+      video: {
+        width: parseInt(process.env.VIDEO_THUMBNAIL_WIDTH || '300', 10),
+        height: parseInt(process.env.VIDEO_THUMBNAIL_HEIGHT || '300', 10),
+        timeOffset: parseInt(process.env.VIDEO_THUMBNAIL_TIME || '1', 10), // seconds
+      },
+    },
+  },
 };
 
 export default config;

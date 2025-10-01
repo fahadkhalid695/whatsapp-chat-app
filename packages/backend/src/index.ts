@@ -8,6 +8,7 @@ import authRoutes from './routes/auth';
 import userRoutes from './routes/users';
 import conversationRoutes from './routes/conversations';
 import messageRoutes from './routes/messages';
+import mediaRoutes from './routes/media';
 import { initializeSocketServer } from './socket';
 import { redisClient } from './socket/redis';
 import { setupTypingCleanup } from './socket/handlers/typingHandlers';
@@ -40,6 +41,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/conversations', conversationRoutes);
 app.use('/api/messages', messageRoutes);
+app.use('/api/media', mediaRoutes);
 
 // 404 handler
 app.use('*', (req, res) => {
