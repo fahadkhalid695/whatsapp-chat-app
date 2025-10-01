@@ -15,6 +15,8 @@ import ConversationListScreen from '../screens/ConversationListScreen';
 import ChatScreen from '../screens/ChatScreen';
 import ContactsScreen from '../screens/ContactsScreen';
 import SettingsScreen from '../screens/SettingsScreen';
+import GroupCreationScreen from '../screens/GroupCreationScreen';
+import GroupSettingsScreen from '../screens/GroupSettingsScreen';
 
 const Stack = createStackNavigator<RootStackParamList>();
 const Tab = createBottomTabNavigator<MainTabParamList>();
@@ -85,6 +87,16 @@ const AppNavigator: React.FC = () => {
               name="Chat" 
               component={ChatScreen}
               options={{ headerShown: true, title: 'Chat' }}
+            />
+            <Stack.Screen 
+              name="GroupCreation" 
+              component={GroupCreationScreen}
+              options={{ headerShown: true, title: 'New Group' }}
+            />
+            <Stack.Screen 
+              name="GroupSettings" 
+              component={GroupSettingsScreen}
+              options={{ headerShown: true, title: 'Group Info' }}
             />
           </>
         )}

@@ -2,14 +2,13 @@ import { randomUUID } from 'crypto';
 import { 
   User, 
   VerificationSession, 
-  AuthTokens, 
   PhoneVerificationResponse, 
   VerifyCodeResponse 
 } from '../types';
 import { JWTUtils } from '../utils/jwt';
 import { PhoneUtils } from '../utils/phone';
 import { SMSService } from './sms';
-import { DatabaseConnection } from '../database/connection';
+import { db } from '../database/connection';
 
 /**
  * Authentication service handling user registration and login
@@ -18,7 +17,7 @@ export class AuthService {
   private static verificationSessions = new Map<string, VerificationSession>();
   
   // Clean up expired sessions every 5 minutes
-  private static cleanupInterval = setInterval(() => {
+  private static _cleanupInterval = setInterval(() => {
     AuthService.cleanupExpiredSessions();
   }, 5 * 60 * 1000);
 
@@ -149,7 +148,6 @@ export class AuthService {
    * Find user by phone number
    */
   private static async findUserByPhoneNumber(phoneNumber: string): Promise<User | null> {
-    const db = DatabaseConnection.getInstance();
     
     try {
       const result = await db.query(
@@ -187,7 +185,6 @@ export class AuthService {
     displayName: string,
     profilePicture?: string
   ): Promise<User> {
-    const db = DatabaseConnection.getInstance();
     const userId = randomUUID();
     
     try {
@@ -220,7 +217,6 @@ export class AuthService {
    * Update user's last seen timestamp
    */
   private static async updateUserLastSeen(userId: string): Promise<User> {
-    const db = DatabaseConnection.getInstance();
     
     try {
       const result = await db.query(
@@ -277,5 +273,14 @@ export class AuthService {
    */
   static clearVerificationSessions(): void {
     this.verificationSessions.clear();
+  }
+
+  /**
+   * Stop cleanup interval (for testing)
+   */
+  static stopCleanupInterval(): void {
+    if (this._cleanupInterval) {
+      clearInterval(this._cleanupInterval);
+    }
   }
 }

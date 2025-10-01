@@ -158,9 +158,17 @@ const ConversationListScreen: React.FC = () => {
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Chats</Text>
-        <TouchableOpacity style={styles.headerButton}>
-          <Icon name="search" size={24} color="#25D366" />
-        </TouchableOpacity>
+        <View style={styles.headerActions}>
+          <TouchableOpacity 
+            style={styles.headerButton}
+            onPress={() => navigation.navigate('GroupCreation')}
+          >
+            <Icon name="group-add" size={24} color="#25D366" />
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.headerButton}>
+            <Icon name="search" size={24} color="#25D366" />
+          </TouchableOpacity>
+        </View>
       </View>
 
       <FlatList
@@ -201,6 +209,9 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: 'bold',
     color: '#25D366',
+  },
+  headerActions: {
+    flexDirection: 'row',
   },
   headerButton: {
     padding: 8,

@@ -8,9 +8,11 @@ import {
   Platform,
   Alert,
   Text,
+  TouchableOpacity,
 } from 'react-native';
 import { useRoute, useNavigation, RouteProp } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
+import Icon from 'react-native-vector-icons/MaterialIcons';
 import { RootStackParamList, Message } from '../types';
 import { useChatStore } from '../store/chatStore';
 import { useAuthStore } from '../store/authStore';
@@ -33,6 +35,7 @@ const ChatScreen: React.FC = () => {
   const { conversationId, conversationName } = route.params;
   
   const {
+    conversations,
     messages,
     isLoading,
     typingUsers,
@@ -46,10 +49,24 @@ const ChatScreen: React.FC = () => {
   const conversationMessages = messages[conversationId] || [];
 
   useEffect(() => {
+    // Check if this is a group conversation
+    const conversation = conversations.find(c => c.id === conversationId);
+    const isGroup = conversation?.type === 'group';
+    
     navigation.setOptions({
       title: conversationName || 'Chat',
+      headerRight: () => (
+        isGroup ? (
+          <TouchableOpacity
+            style={{ paddingHorizontal: 16 }}
+            onPress={() => navigation.navigate('GroupSettings', { conversationId })}
+          >
+            <Icon name="info" size={24} color="#25D366" />
+          </TouchableOpacity>
+        ) : null
+      ),
     });
-  }, [navigation, conversationName]);
+  }, [navigation, conversationName, conversationId, conversations]);
 
   useEffect(() => {
     setActiveConversation(conversationId);

@@ -84,6 +84,8 @@ export type RootStackParamList = {
   ProfileSetup: undefined;
   Main: undefined;
   Chat: { conversationId: string; conversationName?: string };
+  GroupCreation: undefined;
+  GroupSettings: { conversationId: string };
 };
 
 export type MainTabParamList = {

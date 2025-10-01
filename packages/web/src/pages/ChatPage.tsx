@@ -11,6 +11,7 @@ import {
   Drawer,
   useMediaQuery,
   useTheme,
+  Fab,
 } from '@mui/material';
 import {
   Menu as MenuIcon,
@@ -18,14 +19,19 @@ import {
   Search,
   Group,
   Person,
+  Add,
+  Info,
 } from '@mui/icons-material';
 import { useAuthStore } from '../store/authStore';
 import { useChatStore } from '../store/chatStore';
 import { socketService } from '../services/socket';
+import { apiService } from '../services/api';
 import ConversationList from '../components/ConversationList';
 import MessageView from '../components/MessageView';
 import MessageInput from '../components/MessageInput';
-import { MessageContent, MessageType, Conversation, Message } from '../types';
+import GroupCreationDialog from '../components/GroupCreationDialog';
+import GroupSettingsDialog from '../components/GroupSettingsDialog';
+import { MessageContent, MessageType, Conversation, Message, Contact } from '../types';
 
 const DRAWER_WIDTH = 320;
 
@@ -47,58 +53,109 @@ const ChatPage: React.FC = () => {
 
   const [drawerOpen, setDrawerOpen] = useState(!isMobile);
   const [profileMenuAnchor, setProfileMenuAnchor] = useState<null | HTMLElement>(null);
+  const [chatMenuAnchor, setChatMenuAnchor] = useState<null | HTMLElement>(null);
+  const [showGroupCreation, setShowGroupCreation] = useState(false);
+  const [showGroupSettings, setShowGroupSettings] = useState(false);
+  const [contacts, setContacts] = useState<Contact[]>([]);
 
-  // Mock data for development
+  // Load conversations and contacts
   useEffect(() => {
-    // In a real app, you would fetch conversations from the API
-    const mockConversations: Conversation[] = [
-      {
-        id: '1',
-        type: 'direct',
-        participants: [user?.id || '', 'user2'],
-        lastActivity: new Date(),
-        isArchived: false,
-        isMuted: false,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-        lastMessage: {
-          id: 'msg1',
-          conversationId: '1',
-          senderId: 'user2',
-          content: { text: 'Hey there! How are you doing?' },
-          type: 'text',
-          timestamp: new Date(),
-          deliveredTo: [],
-          readBy: [],
-          isDeleted: false,
-        },
-      },
-      {
-        id: '2',
-        type: 'group',
-        name: 'Team Chat',
-        participants: [user?.id || '', 'user2', 'user3'],
-        lastActivity: new Date(Date.now() - 3600000), // 1 hour ago
-        isArchived: false,
-        isMuted: false,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-        lastMessage: {
-          id: 'msg2',
-          conversationId: '2',
-          senderId: 'user3',
-          content: { text: 'Great work on the project!' },
-          type: 'text',
-          timestamp: new Date(Date.now() - 3600000),
-          deliveredTo: [],
-          readBy: [],
-          isDeleted: false,
-        },
-      },
-    ];
+    const loadData = async () => {
+      try {
+        // Load conversations
+        const conversationsResponse = await apiService.get('/conversations');
+        if (conversationsResponse.success) {
+          setConversations(conversationsResponse.data);
+        }
 
-    setConversations(mockConversations);
-  }, [setConversations, user?.id]);
+        // Load contacts
+        const contactsResponse = await apiService.get('/users/contacts');
+        if (contactsResponse.success) {
+          setContacts(contactsResponse.data);
+        }
+      } catch (error) {
+        console.error('Failed to load data:', error);
+        
+        // Fallback to mock data for development
+        const mockConversations: Conversation[] = [
+          {
+            id: '1',
+            type: 'direct',
+            participants: [user?.id || '', 'user2'],
+            lastActivity: new Date(),
+            isArchived: false,
+            isMuted: false,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+            lastMessage: {
+              id: 'msg1',
+              conversationId: '1',
+              senderId: 'user2',
+              content: { text: 'Hey there! How are you doing?' },
+              type: 'text',
+              timestamp: new Date(),
+              deliveredTo: [],
+              readBy: [],
+              isDeleted: false,
+            },
+          },
+          {
+            id: '2',
+            type: 'group',
+            name: 'Team Chat',
+            participants: [user?.id || '', 'user2', 'user3'],
+            admins: [user?.id || ''],
+            lastActivity: new Date(Date.now() - 3600000),
+            isArchived: false,
+            isMuted: false,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+            lastMessage: {
+              id: 'msg2',
+              conversationId: '2',
+              senderId: 'user3',
+              content: { text: 'Great work on the project!' },
+              type: 'text',
+              timestamp: new Date(Date.now() - 3600000),
+              deliveredTo: [],
+              readBy: [],
+              isDeleted: false,
+            },
+          },
+        ];
+
+        const mockContacts: Contact[] = [
+          {
+            id: '1',
+            userId: user?.id || '',
+            contactUserId: 'user2',
+            name: 'John Doe',
+            phoneNumber: '+1234567890',
+            isAppUser: true,
+            isBlocked: false,
+            addedAt: new Date(),
+          },
+          {
+            id: '2',
+            userId: user?.id || '',
+            contactUserId: 'user3',
+            name: 'Jane Smith',
+            phoneNumber: '+1234567891',
+            isAppUser: true,
+            isBlocked: false,
+            addedAt: new Date(),
+          },
+        ];
+
+        setConversations(mockConversations);
+        setContacts(mockContacts);
+      }
+    };
+
+    if (user) {
+      loadData();
+    }
+  }, [setConversations, user]);
 
   const activeConversation = conversations.find(c => c.id === activeConversationId);
   const conversationMessages = activeConversationId ? messages[activeConversationId] || [] : [];
@@ -158,6 +215,174 @@ const ChatPage: React.FC = () => {
     logout();
     socketService.disconnect();
     handleProfileMenuClose();
+  };
+
+  const handleChatMenuOpen = (event: React.MouseEvent<HTMLElement>) => {
+    setChatMenuAnchor(event.currentTarget);
+  };
+
+  const handleChatMenuClose = () => {
+    setChatMenuAnchor(null);
+  };
+
+  const handleCreateGroup = async (name: string, participants: string[]) => {
+    try {
+      const response = await apiService.post('/conversations', {
+        type: 'group',
+        name,
+        participants,
+      });
+
+      if (response.success) {
+        // Add new conversation to the list
+        setConversations(prev => [response.data, ...prev]);
+        setActiveConversation(response.data.id);
+        socketService.joinConversation(response.data.id);
+      }
+    } catch (error) {
+      console.error('Failed to create group:', error);
+      throw error;
+    }
+  };
+
+  const handleUpdateGroupName = async (name: string) => {
+    if (!activeConversationId) return;
+
+    try {
+      const response = await apiService.put(`/conversations/${activeConversationId}`, {
+        name,
+      });
+
+      if (response.success) {
+        // Update conversation in the list
+        setConversations(prev =>
+          prev.map(conv =>
+            conv.id === activeConversationId
+              ? { ...conv, name, updatedAt: new Date() }
+              : conv
+          )
+        );
+      }
+    } catch (error) {
+      console.error('Failed to update group name:', error);
+      throw error;
+    }
+  };
+
+  const handleAddParticipants = async (participantIds: string[]) => {
+    if (!activeConversationId) return;
+
+    try {
+      await apiService.post(`/conversations/${activeConversationId}/participants`, {
+        participantIds,
+      });
+
+      // Update conversation participants
+      setConversations(prev =>
+        prev.map(conv =>
+          conv.id === activeConversationId
+            ? { ...conv, participants: [...conv.participants, ...participantIds] }
+            : conv
+        )
+      );
+    } catch (error) {
+      console.error('Failed to add participants:', error);
+      throw error;
+    }
+  };
+
+  const handleRemoveParticipant = async (participantId: string) => {
+    if (!activeConversationId) return;
+
+    try {
+      await apiService.delete(`/conversations/${activeConversationId}/participants`, {
+        participantIds: [participantId],
+      });
+
+      // Update conversation participants
+      setConversations(prev =>
+        prev.map(conv =>
+          conv.id === activeConversationId
+            ? { 
+                ...conv, 
+                participants: conv.participants.filter(id => id !== participantId),
+                admins: conv.admins?.filter(id => id !== participantId)
+              }
+            : conv
+        )
+      );
+    } catch (error) {
+      console.error('Failed to remove participant:', error);
+      throw error;
+    }
+  };
+
+  const handlePromoteToAdmin = async (participantId: string) => {
+    if (!activeConversationId) return;
+
+    try {
+      await apiService.put(`/conversations/${activeConversationId}/admin`, {
+        targetUserId: participantId,
+        makeAdmin: true,
+      });
+
+      // Update conversation admins
+      setConversations(prev =>
+        prev.map(conv =>
+          conv.id === activeConversationId
+            ? { 
+                ...conv, 
+                admins: [...(conv.admins || []), participantId]
+              }
+            : conv
+        )
+      );
+    } catch (error) {
+      console.error('Failed to promote to admin:', error);
+      throw error;
+    }
+  };
+
+  const handleDemoteFromAdmin = async (participantId: string) => {
+    if (!activeConversationId) return;
+
+    try {
+      await apiService.put(`/conversations/${activeConversationId}/admin`, {
+        targetUserId: participantId,
+        makeAdmin: false,
+      });
+
+      // Update conversation admins
+      setConversations(prev =>
+        prev.map(conv =>
+          conv.id === activeConversationId
+            ? { 
+                ...conv, 
+                admins: conv.admins?.filter(id => id !== participantId) || []
+              }
+            : conv
+        )
+      );
+    } catch (error) {
+      console.error('Failed to demote from admin:', error);
+      throw error;
+    }
+  };
+
+  const handleLeaveGroup = async () => {
+    if (!activeConversationId) return;
+
+    try {
+      await apiService.delete(`/conversations/${activeConversationId}/leave`);
+
+      // Remove conversation from list
+      setConversations(prev => prev.filter(conv => conv.id !== activeConversationId));
+      setActiveConversation(null);
+      socketService.leaveConversation(activeConversationId);
+    } catch (error) {
+      console.error('Failed to leave group:', error);
+      throw error;
+    }
   };
 
   const getConversationTitle = (conversation: Conversation | undefined): string => {
@@ -262,12 +487,26 @@ const ChatPage: React.FC = () => {
       </Box>
 
       {/* Conversation list */}
-      <Box sx={{ flexGrow: 1, overflow: 'hidden' }}>
+      <Box sx={{ flexGrow: 1, overflow: 'hidden', position: 'relative' }}>
         <ConversationList
           conversations={conversations}
           onSelectConversation={handleConversationSelect}
           activeConversationId={activeConversationId}
         />
+        
+        {/* Floating action button for new group */}
+        <Fab
+          color="primary"
+          size="medium"
+          sx={{
+            position: 'absolute',
+            bottom: 16,
+            right: 16,
+          }}
+          onClick={() => setShowGroupCreation(true)}
+        >
+          <Add />
+        </Fab>
       </Box>
     </Box>
   );
@@ -339,7 +578,7 @@ const ChatPage: React.FC = () => {
                 <IconButton>
                   <Search />
                 </IconButton>
-                <IconButton>
+                <IconButton onClick={handleChatMenuOpen}>
                   <MoreVert />
                 </IconButton>
               </>
@@ -375,6 +614,49 @@ const ChatPage: React.FC = () => {
         <MenuItem onClick={handleProfileMenuClose}>Settings</MenuItem>
         <MenuItem onClick={handleLogout}>Logout</MenuItem>
       </Menu>
+
+      {/* Chat menu */}
+      <Menu
+        anchorEl={chatMenuAnchor}
+        open={Boolean(chatMenuAnchor)}
+        onClose={handleChatMenuClose}
+      >
+        {activeConversation?.type === 'group' && (
+          <MenuItem
+            onClick={() => {
+              setShowGroupSettings(true);
+              handleChatMenuClose();
+            }}
+          >
+            <Info sx={{ mr: 1 }} />
+            Group Info
+          </MenuItem>
+        )}
+        <MenuItem onClick={handleChatMenuClose}>Search Messages</MenuItem>
+        <MenuItem onClick={handleChatMenuClose}>Clear Chat</MenuItem>
+      </Menu>
+
+      {/* Group creation dialog */}
+      <GroupCreationDialog
+        open={showGroupCreation}
+        onClose={() => setShowGroupCreation(false)}
+        contacts={contacts}
+        onCreateGroup={handleCreateGroup}
+      />
+
+      {/* Group settings dialog */}
+      <GroupSettingsDialog
+        open={showGroupSettings}
+        onClose={() => setShowGroupSettings(false)}
+        conversation={activeConversation}
+        contacts={contacts}
+        onUpdateGroupName={handleUpdateGroupName}
+        onAddParticipants={handleAddParticipants}
+        onRemoveParticipant={handleRemoveParticipant}
+        onPromoteToAdmin={handlePromoteToAdmin}
+        onDemoteFromAdmin={handleDemoteFromAdmin}
+        onLeaveGroup={handleLeaveGroup}
+      />
     </Box>
   );
 };
