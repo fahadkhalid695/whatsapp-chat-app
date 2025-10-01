@@ -1,0 +1,75 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: whatsapp-postgres
+    environment:
+      POSTGRES_DB: whatsapp_chat
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./packages/backend/database/init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - whatsapp-network
+
+  redis:
+    image: redis:7-alpine
+    container_name: whatsapp-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - whatsapp-network
+
+  backend:
+    build:
+      context: ./packages/backend
+      dockerfile: Dockerfile.dev
+    container_name: whatsapp-backend
+    environment:
+      NODE_ENV: development
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/whatsapp_chat
+      REDIS_URL: redis://redis:6379
+      JWT_SECRET: your-jwt-secret-key
+      PORT: 3001
+    ports:
+      - "3001:3001"
+    volumes:
+      - ./packages/backend:/app
+      - /app/node_modules
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - whatsapp-network
+    command: npm run dev
+
+  web:
+    build:
+      context: ./packages/web
+      dockerfile: Dockerfile.dev
+    container_name: whatsapp-web
+    environment:
+      VITE_API_URL: http://localhost:3001
+      VITE_WS_URL: ws://localhost:3001
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./packages/web:/app
+      - /app/node_modules
+    networks:
+      - whatsapp-network
+    command: npm run dev
+
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  whatsapp-network:
+    driver: bridge
