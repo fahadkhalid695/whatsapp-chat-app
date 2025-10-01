@@ -10,11 +10,13 @@ import conversationRoutes from './routes/conversations';
 import messageRoutes from './routes/messages';
 import mediaRoutes from './routes/media';
 import notificationRoutes from './routes/notifications';
+import securityRoutes from './routes/security';
 import { initializeSocketServer } from './socket';
 import { redisClient } from './socket/redis';
 import { setupTypingCleanup } from './socket/handlers/typingHandlers';
 import { db } from './database/connection';
 import { createNotificationService } from './services/notification';
+import { CronService } from './services/cron';
 import { logger } from './utils/logger';
 
 const app = express();
@@ -47,6 +49,7 @@ app.use('/api/conversations', conversationRoutes);
 app.use('/api/messages', messageRoutes);
 app.use('/api/media', mediaRoutes);
 app.use('/api/notifications', notificationRoutes);
+app.use('/api/security', securityRoutes);
 
 // 404 handler
 app.use('*', (req, res) => {
@@ -84,6 +87,9 @@ async function startServer() {
     // Set up typing cleanup
     setupTypingCleanup();
     
+    // Start cron jobs
+    CronService.startAll();
+    
     // Start HTTP server
     const PORT = config.server.port;
     const HOST = config.server.host;
@@ -101,6 +107,7 @@ async function startServer() {
     // Graceful shutdown
     process.on('SIGTERM', async () => {
       logger.info('SIGTERM received, shutting down gracefully');
+      CronService.stopAll();
       const notificationService = require('./services/notification').getNotificationService();
       notificationService.shutdown();
       await redisClient.disconnect();
@@ -113,6 +120,7 @@ async function startServer() {
 
     process.on('SIGINT', async () => {
       logger.info('SIGINT received, shutting down gracefully');
+      CronService.stopAll();
       const notificationService = require('./services/notification').getNotificationService();
       notificationService.shutdown();
       await redisClient.disconnect();

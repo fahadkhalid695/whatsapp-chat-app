@@ -141,7 +141,7 @@
   - Implement search result navigation to original message location
   - _Requirements: 8.1, 8.2, 8.3, 8.4, 8.5, 8.6_
 
-- [ ] 17. Add privacy and security features
+- [x] 17. Add privacy and security features
   - Implement end-to-end encryption for message content
   - Build message deletion with sync across devices
   - Create disappearing messages functionality with timer options

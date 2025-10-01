@@ -19,6 +19,7 @@
     "db:stats": "node database/seeds/seed.js stats"
   },
   "dependencies": {
+    "@types/node-cron": "^3.0.11",
     "aws-sdk": "^2.1692.0",
     "bcryptjs": "^2.4.3",
     "compression": "^1.7.4",
@@ -33,6 +34,7 @@
     "jsonwebtoken": "^9.0.2",
     "mime-types": "^3.0.1",
     "multer": "^1.4.5-lts.1",
+    "node-cron": "^4.2.1",
     "pg": "^8.11.3",
     "redis": "^4.6.7",
     "sharp": "^0.34.4",

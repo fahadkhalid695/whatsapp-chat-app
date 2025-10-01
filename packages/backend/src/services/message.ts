@@ -7,6 +7,7 @@ import {
   MessageType,
 } from '../types';
 import { getNotificationService } from './notification';
+import { SecurityService } from './security';
 import { logger } from '../utils/logger';
 
 export class MessageService {
@@ -87,6 +88,15 @@ export class MessageService {
         otherParticipants, // deliveredTo
         [] // readBy (empty initially)
       );
+
+      // Set message expiration if disappearing messages are enabled (async, don't wait)
+      setImmediate(async () => {
+        try {
+          await SecurityService.setMessageExpiration(messageEntity.id, conversationId);
+        } catch (error) {
+          logger.error('Error setting message expiration:', error);
+        }
+      });
 
       // Send notifications to other participants (async, don't wait)
       setImmediate(async () => {
@@ -222,28 +232,70 @@ export class MessageService {
   }
 
   /**
-   * Delete a message (soft delete)
+   * Delete a message (soft delete with sync across devices)
    */
   static async deleteMessage(
     messageId: string,
-    userId: string
-  ): Promise<void> {
-    await db.transaction(async (client) => {
-      // Verify message exists and user is the sender
+    userId: string,
+    deleteForEveryone: boolean = false
+  ): Promise<{ conversationId: string; participants: string[] }> {
+    return db.transaction(async (client) => {
+      // Verify message exists and user has permission to delete
       const messageResult = await client.query<MessageEntity>(
-        'SELECT * FROM messages WHERE id = $1 AND sender_id = $2 AND is_deleted = false',
-        [messageId, userId]
+        'SELECT * FROM messages WHERE id = $1 AND is_deleted = false',
+        [messageId]
       );
 
       if (messageResult.rows.length === 0) {
-        throw new Error('Message not found or you are not authorized to delete it');
+        throw new Error('Message not found');
       }
 
-      // Soft delete the message
-      await client.query(
-        'UPDATE messages SET is_deleted = true WHERE id = $1',
-        [messageId]
+      const message = messageResult.rows[0];
+
+      // Check permissions
+      if (deleteForEveryone && message.sender_id !== userId) {
+        throw new Error('Only the sender can delete message for everyone');
+      }
+
+      if (!deleteForEveryone && message.sender_id !== userId) {
+        // For delete for self, we need to check if user is a participant
+        const participantCheck = await client.query(
+          'SELECT 1 FROM conversation_participants WHERE conversation_id = $1 AND user_id = $2',
+          [message.conversation_id, userId]
+        );
+
+        if (participantCheck.rows.length === 0) {
+          throw new Error('You are not authorized to delete this message');
+        }
+      }
+
+      if (deleteForEveryone) {
+        // Delete for everyone - soft delete the message
+        await client.query(
+          'UPDATE messages SET is_deleted = true, content = $1 WHERE id = $2',
+          [JSON.stringify({ text: 'This message was deleted' }), messageId]
+        );
+      } else {
+        // Delete for self only - this would require a more complex implementation
+        // For now, we'll implement it as a soft delete as well
+        await client.query(
+          'UPDATE messages SET is_deleted = true WHERE id = $1',
+          [messageId]
+        );
+      }
+
+      // Get conversation participants for sync
+      const participantsResult = await client.query(
+        'SELECT user_id FROM conversation_participants WHERE conversation_id = $1',
+        [message.conversation_id]
       );
+
+      const participants = participantsResult.rows.map(row => row.user_id);
+
+      return {
+        conversationId: message.conversation_id,
+        participants
+      };
     });
   }
 

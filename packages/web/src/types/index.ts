@@ -76,3 +76,69 @@ export interface ChatState {
   contacts: Contact[];
   isLoading: boolean;
 }
+
+// Security and Privacy types
+export interface SecuritySettings {
+  userId: string;
+  twoFactorEnabled: boolean;
+  readReceiptsEnabled: boolean;
+  lastSeenEnabled: boolean;
+  profilePhotoVisibility: 'everyone' | 'contacts' | 'nobody';
+  statusVisibility: 'everyone' | 'contacts' | 'nobody';
+  blockedUsers: string[];
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface DisappearingMessageSettings {
+  conversationId: string;
+  timerDuration: number; // in seconds (0 = disabled)
+  enabledBy: string;
+  enabledAt: Date;
+}
+
+export interface UserReport {
+  id: string;
+  reporterId: string;
+  reportedUserId: string;
+  reason: 'spam' | 'harassment' | 'inappropriate_content' | 'fake_account' | 'other';
+  description?: string;
+  messageId?: string;
+  conversationId?: string;
+  status: 'pending' | 'reviewed' | 'resolved' | 'dismissed';
+  createdAt: Date;
+  reviewedAt?: Date;
+  reviewedBy?: string;
+}
+
+// API Request types
+export interface ReportUserRequest {
+  reportedUserId: string;
+  reason: 'spam' | 'harassment' | 'inappropriate_content' | 'fake_account' | 'other';
+  description?: string;
+  messageId?: string;
+  conversationId?: string;
+}
+
+export interface UpdateSecuritySettingsRequest {
+  twoFactorEnabled?: boolean;
+  readReceiptsEnabled?: boolean;
+  lastSeenEnabled?: boolean;
+  profilePhotoVisibility?: 'everyone' | 'contacts' | 'nobody';
+  statusVisibility?: 'everyone' | 'contacts' | 'nobody';
+}
+
+export interface SetDisappearingMessagesRequest {
+  conversationId: string;
+  timerDuration: number;
+}
+
+export interface GenerateRecoveryCodeRequest {
+  phoneNumber: string;
+}
+
+export interface UseRecoveryCodeRequest {
+  phoneNumber: string;
+  recoveryCode: string;
+  newDisplayName?: string;
+}
