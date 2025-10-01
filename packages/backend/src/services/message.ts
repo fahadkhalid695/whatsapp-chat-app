@@ -400,4 +400,66 @@ export class MessageService {
       row.read_by || []
     );
   }
+
+  /**
+   * Get multiple messages by IDs (for socket handlers)
+   */
+  static async getMessagesByIds(messageIds: string[]): Promise<Message[]> {
+    if (messageIds.length === 0) return [];
+
+    const result = await db.query<MessageEntity & {
+      delivered_to: string[];
+      read_by: string[];
+    }>(
+      `SELECT 
+         m.*,
+         COALESCE(
+           ARRAY_AGG(DISTINCT ms_delivered.user_id) FILTER (WHERE ms_delivered.status = 'delivered'),
+           ARRAY[]::uuid[]
+         ) as delivered_to,
+         COALESCE(
+           ARRAY_AGG(DISTINCT ms_read.user_id) FILTER (WHERE ms_read.status = 'read'),
+           ARRAY[]::uuid[]
+         ) as read_by
+       FROM messages m
+       LEFT JOIN message_status ms_delivered ON m.id = ms_delivered.message_id AND ms_delivered.status = 'delivered'
+       LEFT JOIN message_status ms_read ON m.id = ms_read.message_id AND ms_read.status = 'read'
+       WHERE m.id = ANY($1) AND m.is_deleted = false
+       GROUP BY m.id`,
+      [messageIds]
+    );
+
+    return result.rows.map(row => 
+      ModelTransformer.messageEntityToMessage(
+        row,
+        row.delivered_to || [],
+        row.read_by || []
+      )
+    );
+  }
+
+  /**
+   * Mark messages as read (alias for socket compatibility)
+   */
+  static async markAsRead(userId: string, messageIds: string[]): Promise<void> {
+    return this.markMessagesAsRead(messageIds, userId);
+  }
+
+  /**
+   * Edit message content only (for socket compatibility)
+   */
+  static async editMessageContent(messageId: string, newContent: MessageContent): Promise<Message> {
+    // Get the message to find the sender
+    const messageResult = await db.query<MessageEntity>(
+      'SELECT sender_id FROM messages WHERE id = $1 AND is_deleted = false',
+      [messageId]
+    );
+
+    if (messageResult.rows.length === 0) {
+      throw new Error('Message not found');
+    }
+
+    const senderId = messageResult.rows[0].sender_id;
+    return this.editMessage(messageId, senderId, newContent);
+  }
 }

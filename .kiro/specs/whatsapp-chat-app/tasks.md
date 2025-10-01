@@ -61,7 +61,7 @@
   - Create message search functionality across conversations
   - _Requirements: 2.1, 2.2, 2.5, 8.1, 8.2, 8.3, 8.4_
 
-- [ ] 7. Implement real-time communication layer
+- [x] 7. Implement real-time communication layer
   - Set up Socket.io server with authentication middleware
   - Create WebSocket event handlers for message sending and receiving
   - Implement real-time message delivery to connected clients
@@ -69,7 +69,7 @@
   - Create message queuing system using Redis for offline users
   - _Requirements: 2.1, 2.3, 2.4, 2.6, 6.1, 6.2, 6.3_
 
-- [ ] 8. Develop media handling system
+- [-] 8. Develop media handling system
   - Implement file upload API with size and type validation
   - Create media storage integration with S3-compatible service
   - Build automatic thumbnail generation for images and videos
