@@ -21,6 +21,7 @@ interface MessageBubbleProps {
   isOwn: boolean;
   showTimestamp: boolean;
   showAvatar: boolean;
+  onMediaClick?: (message: Message) => void;
 }
 
 const MessageBubble: React.FC<MessageBubbleProps> = ({
@@ -28,6 +29,7 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
   isOwn,
   showTimestamp,
   showAvatar,
+  onMediaClick,
 }) => {
   const { user } = useAuthStore();
 
@@ -67,7 +69,9 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
                 height: 'auto',
                 borderRadius: '8px',
                 display: 'block',
+                cursor: 'pointer',
               }}
+              onClick={() => onMediaClick?.(message)}
             />
           ) : (
             <Box
@@ -106,7 +110,9 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
+              cursor: 'pointer',
             }}
+            onClick={() => onMediaClick?.(message)}
           >
             {content.thumbnailUrl ? (
               <img

@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { ChatState, Conversation, Message, Contact } from '../types';
 
 interface ChatStore extends ChatState {
-  setConversations: (conversations: Conversation[]) => void;
+  setConversations: (conversations: Conversation[] | ((prev: Conversation[]) => Conversation[])) => void;
   addConversation: (conversation: Conversation) => void;
   updateConversation: (id: string, updates: Partial<Conversation>) => void;
   setActiveConversation: (id: string | null) => void;
@@ -35,7 +35,10 @@ export const useChatStore = create<ChatStore>((set) => ({
   userPresence: {},
   temporaryMessages: {},
 
-  setConversations: (conversations: Conversation[]) => set({ conversations }),
+  setConversations: (conversations: Conversation[] | ((prev: Conversation[]) => Conversation[])) => 
+    set((state) => ({
+      conversations: typeof conversations === 'function' ? conversations(state.conversations) : conversations
+    })),
   
   addConversation: (conversation: Conversation) => set((state) => ({
     conversations: [conversation, ...state.conversations]

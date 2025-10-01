@@ -15,12 +15,13 @@ import {
   MediaType,
 } from 'react-native-image-picker';
 import { request, PERMISSIONS, RESULTS } from 'react-native-permissions';
+import DocumentPicker from 'react-native-document-picker';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 
 interface MediaPickerProps {
   visible: boolean;
   onClose: () => void;
-  onMediaSelected: (uri: string, type: 'image' | 'video', fileName?: string) => void;
+  onMediaSelected: (uri: string, type: 'image' | 'video' | 'document', fileName?: string, fileSize?: number) => void;
 }
 
 const MediaPicker: React.FC<MediaPickerProps> = ({
@@ -50,7 +51,7 @@ const MediaPicker: React.FC<MediaPickerProps> = ({
     if (response.assets && response.assets[0]) {
       const asset = response.assets[0];
       if (asset.uri) {
-        onMediaSelected(asset.uri, type, asset.fileName);
+        onMediaSelected(asset.uri, type, asset.fileName, asset.fileSize);
         onClose();
       }
     }
@@ -70,30 +71,75 @@ const MediaPicker: React.FC<MediaPickerProps> = ({
       return;
     }
 
+    const options = {
+      mediaType,
+      quality: mediaType === 'photo' ? 0.8 : 0.7,
+      maxWidth: mediaType === 'photo' ? 1024 : 1280,
+      maxHeight: mediaType === 'photo' ? 1024 : 720,
+      videoQuality: 'medium' as const,
+      durationLimit: mediaType === 'video' ? 300 : undefined, // 5 minutes max for video
+      includeBase64: false,
+      includeExtra: true,
+    };
+
     launchCamera(
-      {
-        mediaType,
-        quality: 0.8,
-        maxWidth: 1024,
-        maxHeight: 1024,
-        videoQuality: 'medium',
-        durationLimit: 60, // 60 seconds max for video
-      },
+      options,
       (response) => handleMediaResponse(response, mediaType === 'photo' ? 'image' : 'video')
     );
   };
 
   const openImageLibrary = (mediaType: MediaType = 'photo') => {
+    const options = {
+      mediaType,
+      quality: mediaType === 'photo' ? 0.8 : 0.7,
+      maxWidth: mediaType === 'photo' ? 1024 : 1280,
+      maxHeight: mediaType === 'photo' ? 1024 : 720,
+      videoQuality: 'medium' as const,
+      selectionLimit: 1,
+      includeBase64: false,
+      includeExtra: true,
+    };
+
     launchImageLibrary(
-      {
-        mediaType,
-        quality: 0.8,
-        maxWidth: 1024,
-        maxHeight: 1024,
-        videoQuality: 'medium',
-      },
+      options,
       (response) => handleMediaResponse(response, mediaType === 'photo' ? 'image' : 'video')
     );
+  };
+
+  const openDocumentPicker = async () => {
+    try {
+      const result = await DocumentPicker.pickSingle({
+        type: [
+          DocumentPicker.types.pdf,
+          DocumentPicker.types.doc,
+          DocumentPicker.types.docx,
+          DocumentPicker.types.plainText,
+          DocumentPicker.types.zip,
+          DocumentPicker.types.images,
+          DocumentPicker.types.video,
+          DocumentPicker.types.audio,
+        ],
+        copyTo: 'cachesDirectory',
+      });
+
+      if (result.fileCopyUri) {
+        // Determine media type based on MIME type
+        let mediaType: 'image' | 'video' | 'document' = 'document';
+        if (result.type?.startsWith('image/')) {
+          mediaType = 'image';
+        } else if (result.type?.startsWith('video/')) {
+          mediaType = 'video';
+        }
+
+        onMediaSelected(result.fileCopyUri, mediaType, result.name, result.size);
+        onClose();
+      }
+    } catch (error) {
+      if (!DocumentPicker.isCancel(error)) {
+        Alert.alert('Error', 'Failed to pick document');
+        console.error('Document picker error:', error);
+      }
+    }
   };
 
   const options = [
@@ -117,6 +163,11 @@ const MediaPicker: React.FC<MediaPickerProps> = ({
       icon: 'video-library',
       onPress: () => openImageLibrary('video'),
     },
+    {
+      title: 'Choose Document',
+      icon: 'description',
+      onPress: openDocumentPicker,
+    },
   ];
 
   return (
@@ -139,7 +190,10 @@ const MediaPicker: React.FC<MediaPickerProps> = ({
             {options.map((option, index) => (
               <TouchableOpacity
                 key={index}
-                style={styles.option}
+                style={[
+                  styles.option,
+                  options.length === 5 && index === 4 ? styles.fullWidthOption : null
+                ]}
                 onPress={option.onPress}
               >
                 <Icon name={option.icon} size={32} color="#25D366" />
@@ -196,6 +250,9 @@ const styles = StyleSheet.create({
     width: '50%',
     alignItems: 'center',
     paddingVertical: 20,
+  },
+  fullWidthOption: {
+    width: '100%',
   },
   optionText: {
     fontSize: 14,

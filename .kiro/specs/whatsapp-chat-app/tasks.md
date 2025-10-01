@@ -117,7 +117,7 @@
   - Build new conversation creation from contact selection
   - _Requirements: 3.1, 3.2, 3.3, 3.5, 3.6_
 
-- [ ] 14. Implement group chat features
+- [x] 14. Implement group chat features
   - Build group creation interface with participant selection
   - Implement group settings screen for name, picture, and participants
   - Create group admin controls for adding/removing participants
@@ -125,7 +125,7 @@
   - Implement group leave functionality with confirmation
   - _Requirements: 4.1, 4.2, 4.4, 4.5, 4.6_
 
-- [ ] 15. Add media sharing capabilities
+- [x] 15. Add media sharing capabilities
   - Implement photo picker integration for both platforms
   - Build video recording and selection functionality
   - Create file picker for document sharing

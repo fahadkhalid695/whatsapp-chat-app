@@ -193,14 +193,14 @@ const ChatPage: React.FC = () => {
     // Add temporary message to UI
     addMessage(newMessage);
     
-    // Send via socket with temp ID for tracking
+    // Send via socket
     socketService.sendMessage({
       conversationId: activeConversationId,
       senderId: user.id,
       content,
       type,
       isDeleted: false,
-    }, tempId);
+    });
   };
 
   const handleProfileMenuOpen = (event: React.MouseEvent<HTMLElement>) => {
@@ -235,7 +235,7 @@ const ChatPage: React.FC = () => {
 
       if (response.success) {
         // Add new conversation to the list
-        setConversations(prev => [response.data, ...prev]);
+        setConversations((prev: Conversation[]) => [response.data, ...prev]);
         setActiveConversation(response.data.id);
         socketService.joinConversation(response.data.id);
       }
@@ -255,8 +255,8 @@ const ChatPage: React.FC = () => {
 
       if (response.success) {
         // Update conversation in the list
-        setConversations(prev =>
-          prev.map(conv =>
+        setConversations((prev: Conversation[]) =>
+          prev.map((conv: Conversation) =>
             conv.id === activeConversationId
               ? { ...conv, name, updatedAt: new Date() }
               : conv
@@ -278,8 +278,8 @@ const ChatPage: React.FC = () => {
       });
 
       // Update conversation participants
-      setConversations(prev =>
-        prev.map(conv =>
+      setConversations((prev: Conversation[]) =>
+        prev.map((conv: Conversation) =>
           conv.id === activeConversationId
             ? { ...conv, participants: [...conv.participants, ...participantIds] }
             : conv
@@ -296,17 +296,17 @@ const ChatPage: React.FC = () => {
 
     try {
       await apiService.delete(`/conversations/${activeConversationId}/participants`, {
-        participantIds: [participantId],
+        data: { participantIds: [participantId] }
       });
 
       // Update conversation participants
-      setConversations(prev =>
-        prev.map(conv =>
+      setConversations((prev: Conversation[]) =>
+        prev.map((conv: Conversation) =>
           conv.id === activeConversationId
             ? { 
                 ...conv, 
-                participants: conv.participants.filter(id => id !== participantId),
-                admins: conv.admins?.filter(id => id !== participantId)
+                participants: conv.participants.filter((id: string) => id !== participantId),
+                admins: conv.admins?.filter((id: string) => id !== participantId)
               }
             : conv
         )
@@ -327,8 +327,8 @@ const ChatPage: React.FC = () => {
       });
 
       // Update conversation admins
-      setConversations(prev =>
-        prev.map(conv =>
+      setConversations((prev: Conversation[]) =>
+        prev.map((conv: Conversation) =>
           conv.id === activeConversationId
             ? { 
                 ...conv, 
@@ -353,12 +353,12 @@ const ChatPage: React.FC = () => {
       });
 
       // Update conversation admins
-      setConversations(prev =>
-        prev.map(conv =>
+      setConversations((prev: Conversation[]) =>
+        prev.map((conv: Conversation) =>
           conv.id === activeConversationId
             ? { 
                 ...conv, 
-                admins: conv.admins?.filter(id => id !== participantId) || []
+                admins: conv.admins?.filter((id: string) => id !== participantId) || []
               }
             : conv
         )
@@ -376,7 +376,7 @@ const ChatPage: React.FC = () => {
       await apiService.delete(`/conversations/${activeConversationId}/leave`);
 
       // Remove conversation from list
-      setConversations(prev => prev.filter(conv => conv.id !== activeConversationId));
+      setConversations((prev: Conversation[]) => prev.filter((conv: Conversation) => conv.id !== activeConversationId));
       setActiveConversation(null);
       socketService.leaveConversation(activeConversationId);
     } catch (error) {
@@ -589,7 +589,7 @@ const ChatPage: React.FC = () => {
         {/* Messages area */}
         <Box sx={{ flexGrow: 1, overflow: 'hidden' }}>
           <MessageView
-            conversation={activeConversation || null}
+            conversation={activeConversation ?? null}
             messages={conversationMessages}
             isLoading={isLoading}
           />

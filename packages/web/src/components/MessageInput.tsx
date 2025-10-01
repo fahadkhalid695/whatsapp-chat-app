@@ -20,6 +20,7 @@ import {
 import { MessageContent, MessageType } from '../types';
 import { socketService } from '../services/socket';
 import { useChatStore } from '../store/chatStore';
+import MediaPreview from './MediaPreview';
 
 interface MessageInputProps {
   onSendMessage: (content: MessageContent, type: MessageType) => void;
@@ -37,6 +38,8 @@ const MessageInput: React.FC<MessageInputProps> = ({
   const [attachMenuAnchor, setAttachMenuAnchor] = useState<null | HTMLElement>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [isTyping, setIsTyping] = useState(false);
+  const [showMediaPreview, setShowMediaPreview] = useState(false);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
   const videoInputRef = useRef<HTMLInputElement>(null);
@@ -129,7 +132,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
     setAttachMenuAnchor(null);
   };
 
-  const handleFileUpload = async (file: File, type: MessageType) => {
+  const handleFileUpload = async (file: File, caption?: string) => {
     if (!file) return;
 
     setIsUploading(true);
@@ -138,26 +141,31 @@ const MessageInput: React.FC<MessageInputProps> = ({
       // For now, we'll create a mock URL
       const mockUrl = URL.createObjectURL(file);
       
+      const mediaType = file.type.startsWith('image/') ? 'image' :
+                       file.type.startsWith('video/') ? 'video' : 'document';
+      
+      const messageType: MessageType = mediaType === 'document' ? 'document' : 
+                                      mediaType === 'image' ? 'image' : 'video';
+      
       const content: MessageContent = {
+        text: caption,
         mediaUrl: mockUrl,
         fileName: file.name,
         fileSize: file.size,
-        mediaType: type === 'document' ? 'document' : 
-                  type === 'image' ? 'image' : 
-                  type === 'video' ? 'video' : 'audio',
+        mediaType,
       };
 
       // If it's an image, create a thumbnail
-      if (type === 'image') {
+      if (mediaType === 'image') {
         content.thumbnailUrl = mockUrl;
       }
 
-      onSendMessage(content, type);
+      onSendMessage(content, messageType);
     } catch (error) {
       console.error('Failed to upload file:', error);
+      throw error;
     } finally {
       setIsUploading(false);
-      handleAttachClose();
     }
   };
 
@@ -179,22 +187,36 @@ const MessageInput: React.FC<MessageInputProps> = ({
   const handleImageChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
-      handleFileUpload(file, 'image');
+      setSelectedFile(file);
+      setShowMediaPreview(true);
     }
+    // Reset input value to allow selecting the same file again
+    event.target.value = '';
   };
 
   const handleVideoChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
-      handleFileUpload(file, 'video');
+      setSelectedFile(file);
+      setShowMediaPreview(true);
     }
+    // Reset input value to allow selecting the same file again
+    event.target.value = '';
   };
 
   const handleDocumentChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
-      handleFileUpload(file, 'document');
+      setSelectedFile(file);
+      setShowMediaPreview(true);
     }
+    // Reset input value to allow selecting the same file again
+    event.target.value = '';
+  };
+
+  const handleMediaPreviewClose = () => {
+    setSelectedFile(null);
+    setShowMediaPreview(false);
   };
 
   return (
@@ -319,6 +341,14 @@ const MessageInput: React.FC<MessageInputProps> = ({
           <Send />
         )}
       </IconButton>
+
+      {/* Media Preview Dialog */}
+      <MediaPreview
+        open={showMediaPreview}
+        file={selectedFile}
+        onClose={handleMediaPreviewClose}
+        onSend={handleFileUpload}
+      />
     </Box>
   );
 };

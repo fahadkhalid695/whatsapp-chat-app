@@ -8,6 +8,7 @@ interface ChatStore extends ChatState {
   sendMessage: (conversationId: string, content: string, type?: string) => Promise<void>;
   createConversation: (participantIds: string[], type?: 'direct' | 'group', name?: string) => Promise<Conversation>;
   setActiveConversation: (conversationId: string | null) => void;
+  setConversations: (conversations: Conversation[]) => void;
   addMessage: (message: Message) => void;
   updateMessageStatus: (messageId: string, status: 'delivered' | 'read', userId?: string) => void;
   setTypingUsers: (conversationId: string, userIds: string[]) => void;
@@ -111,6 +112,10 @@ export const useChatStore = create<ChatStore>((set, get) => ({
 
   setActiveConversation: (conversationId: string | null) => {
     set({ activeConversation: conversationId });
+  },
+
+  setConversations: (conversations: Conversation[]) => {
+    set({ conversations });
   },
 
   addMessage: (message: Message) => {

@@ -8,10 +8,13 @@ import {
   Keyboard,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
+import MediaPicker from './MediaPicker';
+import MediaPreview from './MediaPreview';
+import { mediaService } from '../services/media';
 
 interface MessageInputProps {
   onSendMessage: (message: string) => void;
-  onAttachMedia: () => void;
+  onSendMedia?: (mediaId: string, mediaType: 'image' | 'video' | 'document', caption?: string) => void;
   onStartTyping?: () => void;
   onStopTyping?: () => void;
   disabled?: boolean;
@@ -19,13 +22,21 @@ interface MessageInputProps {
 
 const MessageInput: React.FC<MessageInputProps> = ({
   onSendMessage,
-  onAttachMedia,
+  onSendMedia,
   onStartTyping,
   onStopTyping,
   disabled = false,
 }) => {
   const [message, setMessage] = useState('');
   const [isTyping, setIsTyping] = useState(false);
+  const [showMediaPicker, setShowMediaPicker] = useState(false);
+  const [showMediaPreview, setShowMediaPreview] = useState(false);
+  const [selectedMedia, setSelectedMedia] = useState<{
+    uri: string;
+    type: 'image' | 'video' | 'document';
+    fileName?: string;
+    fileSize?: number;
+  } | null>(null);
   const inputRef = useRef<TextInput>(null);
   const typingTimeoutRef = useRef<NodeJS.Timeout>();
 
@@ -69,7 +80,41 @@ const MessageInput: React.FC<MessageInputProps> = ({
 
   const handleAttachPress = () => {
     Keyboard.dismiss();
-    onAttachMedia();
+    setShowMediaPicker(true);
+  };
+
+  const handleMediaSelected = (uri: string, type: 'image' | 'video' | 'document', fileName?: string, fileSize?: number) => {
+    setSelectedMedia({ uri, type, fileName, fileSize });
+    setShowMediaPicker(false);
+    setShowMediaPreview(true);
+  };
+
+  const handleMediaSend = async (caption?: string) => {
+    if (!selectedMedia || !onSendMedia) return;
+
+    try {
+      // Upload media to server
+      const uploadResponse = await mediaService.uploadMedia(
+        selectedMedia.uri,
+        selectedMedia.type,
+        selectedMedia.fileName
+      );
+
+      // Send media message
+      await onSendMedia(uploadResponse.mediaId, selectedMedia.type, caption);
+
+      // Reset state
+      setSelectedMedia(null);
+      setShowMediaPreview(false);
+    } catch (error) {
+      console.error('Failed to send media:', error);
+      Alert.alert('Error', 'Failed to send media. Please try again.');
+    }
+  };
+
+  const handleMediaPreviewClose = () => {
+    setSelectedMedia(null);
+    setShowMediaPreview(false);
   };
 
   return (
@@ -112,6 +157,26 @@ const MessageInput: React.FC<MessageInputProps> = ({
           />
         </TouchableOpacity>
       </View>
+
+      {/* Media Picker Modal */}
+      <MediaPicker
+        visible={showMediaPicker}
+        onClose={() => setShowMediaPicker(false)}
+        onMediaSelected={handleMediaSelected}
+      />
+
+      {/* Media Preview Modal */}
+      {selectedMedia && (
+        <MediaPreview
+          visible={showMediaPreview}
+          mediaUri={selectedMedia.uri}
+          mediaType={selectedMedia.type}
+          fileName={selectedMedia.fileName}
+          fileSize={selectedMedia.fileSize}
+          onClose={handleMediaPreviewClose}
+          onSend={handleMediaSend}
+        />
+      )}
     </View>
   );
 };

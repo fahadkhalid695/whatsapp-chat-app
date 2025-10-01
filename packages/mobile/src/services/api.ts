@@ -71,24 +71,30 @@ class ApiClient {
   }
 
   async get(url: string, config?: AxiosRequestConfig) {
-    return this.client.get(url, config);
+    const response = await this.client.get(url, config);
+    return response.data;
   }
 
   async post(url: string, data?: any, config?: AxiosRequestConfig) {
-    return this.client.post(url, data, config);
+    const response = await this.client.post(url, data, config);
+    return response.data;
   }
 
   async put(url: string, data?: any, config?: AxiosRequestConfig) {
-    return this.client.put(url, data, config);
+    const response = await this.client.put(url, data, config);
+    return response.data;
   }
 
   async delete(url: string, config?: AxiosRequestConfig) {
-    return this.client.delete(url, config);
+    const response = await this.client.delete(url, config);
+    return response.data;
   }
 
   async patch(url: string, data?: any, config?: AxiosRequestConfig) {
-    return this.client.patch(url, data, config);
+    const response = await this.client.patch(url, data, config);
+    return response.data;
   }
 }
 
 export const apiClient = new ApiClient();
+export const apiService = apiClient;

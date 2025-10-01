@@ -15,6 +15,7 @@ interface MessageBubbleProps {
   showTimestamp?: boolean;
   onPress?: () => void;
   onLongPress?: () => void;
+  onMediaPress?: (message: Message) => void;
 }
 
 const MessageBubble: React.FC<MessageBubbleProps> = ({
@@ -22,6 +23,7 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
   showTimestamp = false,
   onPress,
   onLongPress,
+  onMediaPress,
 }) => {
   const { user } = useAuthStore();
   const isOwnMessage = message.senderId === user?.id;
@@ -61,11 +63,16 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
         return (
           <View style={styles.mediaContainer}>
             {message.content.mediaUrl && (
-              <Image
-                source={{ uri: message.content.mediaUrl }}
-                style={styles.messageImage}
-                resizeMode="cover"
-              />
+              <TouchableOpacity
+                onPress={() => onMediaPress?.(message)}
+                activeOpacity={0.8}
+              >
+                <Image
+                  source={{ uri: message.content.mediaUrl }}
+                  style={styles.messageImage}
+                  resizeMode="cover"
+                />
+              </TouchableOpacity>
             )}
             {message.content.text && (
               <Text style={[
@@ -82,9 +89,23 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
       case 'video':
         return (
           <View style={styles.mediaContainer}>
-            <View style={styles.videoPlaceholder}>
-              <Icon name="play-circle-filled" size={48} color="#fff" />
-            </View>
+            <TouchableOpacity
+              onPress={() => onMediaPress?.(message)}
+              activeOpacity={0.8}
+            >
+              <View style={styles.videoPlaceholder}>
+                {message.content.thumbnailUrl ? (
+                  <Image
+                    source={{ uri: message.content.thumbnailUrl }}
+                    style={styles.videoThumbnail}
+                    resizeMode="cover"
+                  />
+                ) : null}
+                <View style={styles.playButton}>
+                  <Icon name="play-circle-filled" size={48} color="#fff" />
+                </View>
+              </View>
+            </TouchableOpacity>
             {message.content.text && (
               <Text style={[
                 styles.messageText,
@@ -239,6 +260,22 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 4,
+    position: 'relative',
+  },
+  videoThumbnail: {
+    position: 'absolute',
+    width: '100%',
+    height: '100%',
+    borderRadius: 12,
+  },
+  playButton: {
+    position: 'absolute',
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    borderRadius: 24,
+    width: 48,
+    height: 48,
   },
   documentContainer: {
     flexDirection: 'row',
