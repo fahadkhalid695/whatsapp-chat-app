@@ -6,6 +6,8 @@ import {
   MessageContent,
   MessageType,
 } from '../types';
+import { getNotificationService } from './notification';
+import { logger } from '../utils/logger';
 
 export class MessageService {
   /**
@@ -80,11 +82,27 @@ export class MessageService {
       }
 
       // Transform to API model
-      return ModelTransformer.messageEntityToMessage(
+      const message = ModelTransformer.messageEntityToMessage(
         messageEntity,
         otherParticipants, // deliveredTo
         [] // readBy (empty initially)
       );
+
+      // Send notifications to other participants (async, don't wait)
+      setImmediate(async () => {
+        try {
+          await MessageService.sendMessageNotifications(
+            message,
+            senderId,
+            conversationId,
+            otherParticipants
+          );
+        } catch (error) {
+          logger.error('Error sending message notifications:', error);
+        }
+      });
+
+      return message;
     });
   }
 
@@ -461,5 +479,104 @@ export class MessageService {
 
     const senderId = messageResult.rows[0].sender_id;
     return this.editMessage(messageId, senderId, newContent);
+  }
+
+  /**
+   * Send push notifications for new messages
+   */
+  private static async sendMessageNotifications(
+    message: Message,
+    senderId: string,
+    conversationId: string,
+    recipientIds: string[]
+  ): Promise<void> {
+    try {
+      const notificationService = getNotificationService();
+
+      // Get sender and conversation details
+      const [senderResult, conversationResult] = await Promise.all([
+        db.query('SELECT display_name FROM users WHERE id = $1', [senderId]),
+        db.query(
+          `SELECT c.type, c.name, 
+           COUNT(cp.user_id) as participant_count
+           FROM conversations c
+           LEFT JOIN conversation_participants cp ON c.id = cp.conversation_id
+           WHERE c.id = $1
+           GROUP BY c.id, c.type, c.name`,
+          [conversationId]
+        )
+      ]);
+
+      if (senderResult.rows.length === 0 || conversationResult.rows.length === 0) {
+        logger.warn('Sender or conversation not found for notification');
+        return;
+      }
+
+      const senderName = senderResult.rows[0].display_name;
+      const conversation = conversationResult.rows[0];
+      const isGroup = conversation.type === 'group';
+      const conversationName = isGroup ? conversation.name : null;
+
+      // Determine message content for notification
+      let messageContent: string;
+      if (message.type === 'text' && message.content.text) {
+        messageContent = message.content.text.length > 100 
+          ? message.content.text.substring(0, 100) + '...'
+          : message.content.text;
+      } else if (message.type === 'image') {
+        messageContent = '📷 Photo';
+      } else if (message.type === 'video') {
+        messageContent = '🎥 Video';
+      } else if (message.type === 'audio') {
+        messageContent = '🎵 Audio';
+      } else if (message.type === 'document') {
+        messageContent = `📄 ${message.content.fileName || 'Document'}`;
+      } else {
+        messageContent = 'Sent a message';
+      }
+
+      // Check for mentions in group messages
+      const mentionedUsers: string[] = [];
+      if (isGroup && message.type === 'text' && message.content.text) {
+        // Simple mention detection - look for @username patterns
+        // In a real implementation, you'd have a more sophisticated mention system
+        const mentionRegex = /@(\w+)/g;
+        const mentions = message.content.text.match(mentionRegex);
+        if (mentions) {
+          // Get user IDs for mentioned usernames (simplified)
+          const mentionUsernames = mentions.map(m => m.substring(1));
+          const mentionResult = await db.query(
+            'SELECT id FROM users WHERE display_name = ANY($1)',
+            [mentionUsernames]
+          );
+          mentionedUsers.push(...mentionResult.rows.map(row => row.id));
+        }
+      }
+
+      // Send notifications to all recipients
+      const notificationPromises = recipientIds.map(async (recipientId) => {
+        const isMentioned = mentionedUsers.includes(recipientId);
+        
+        const notificationData = {
+          type: isMentioned ? 'mention' as const : 'message' as const,
+          conversationId,
+          messageId: message.id,
+          senderId,
+          senderName,
+          conversationName,
+          messageContent,
+          isGroup,
+        };
+
+        await notificationService.queueNotification(recipientId, notificationData);
+      });
+
+      await Promise.all(notificationPromises);
+      
+      logger.debug(`Queued notifications for ${recipientIds.length} recipients`);
+    } catch (error) {
+      logger.error('Error in sendMessageNotifications:', error);
+      // Don't throw - notifications are not critical for message sending
+    }
   }
 }

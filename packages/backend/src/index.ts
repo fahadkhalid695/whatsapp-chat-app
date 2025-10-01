@@ -9,9 +9,13 @@ import userRoutes from './routes/users';
 import conversationRoutes from './routes/conversations';
 import messageRoutes from './routes/messages';
 import mediaRoutes from './routes/media';
+import notificationRoutes from './routes/notifications';
 import { initializeSocketServer } from './socket';
 import { redisClient } from './socket/redis';
 import { setupTypingCleanup } from './socket/handlers/typingHandlers';
+import { db } from './database/connection';
+import { createNotificationService } from './services/notification';
+import { logger } from './utils/logger';
 
 const app = express();
 const httpServer = createServer(app);
@@ -42,6 +46,7 @@ app.use('/api/users', userRoutes);
 app.use('/api/conversations', conversationRoutes);
 app.use('/api/messages', messageRoutes);
 app.use('/api/media', mediaRoutes);
+app.use('/api/notifications', notificationRoutes);
 
 // 404 handler
 app.use('*', (req, res) => {
@@ -53,7 +58,7 @@ app.use('*', (req, res) => {
 
 // Error handler
 app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
-  console.error('Unhandled error:', err);
+  logger.error('Unhandled error:', err);
   
   res.status(500).json({
     error: 'Internal server error',
@@ -64,8 +69,14 @@ app.use((err: any, _req: express.Request, res: express.Response, _next: express.
 // Initialize services
 async function startServer() {
   try {
+    // Connect to database
+    await db.connect();
+    
     // Connect to Redis
     await redisClient.connect();
+    
+    // Initialize notification service
+    createNotificationService();
     
     // Initialize Socket.io server
     initializeSocketServer(httpServer);
@@ -78,35 +89,42 @@ async function startServer() {
     const HOST = config.server.host;
 
     httpServer.listen(PORT, HOST, () => {
-      console.log(`🚀 WhatsApp Chat Backend running on http://${HOST}:${PORT}`);
-      console.log(`📱 Environment: ${config.server.nodeEnv}`);
-      console.log(`🔐 JWT Secret configured: ${!!config.jwt.secret}`);
-      console.log(`📧 SMS Provider: ${config.sms.provider}`);
-      console.log(`🔌 Socket.io server initialized`);
-      console.log(`📡 Redis connected`);
+      logger.info(`🚀 WhatsApp Chat Backend running on http://${HOST}:${PORT}`);
+      logger.info(`📱 Environment: ${config.server.nodeEnv}`);
+      logger.info(`🔐 JWT Secret configured: ${!!config.jwt.secret}`);
+      logger.info(`📧 SMS Provider: ${config.sms.provider}`);
+      logger.info(`🔌 Socket.io server initialized`);
+      logger.info(`📡 Redis connected`);
+      logger.info(`🔔 Notification service initialized`);
     });
 
     // Graceful shutdown
     process.on('SIGTERM', async () => {
-      console.log('SIGTERM received, shutting down gracefully');
+      logger.info('SIGTERM received, shutting down gracefully');
+      const notificationService = require('./services/notification').getNotificationService();
+      notificationService.shutdown();
       await redisClient.disconnect();
+      await db.close();
       httpServer.close(() => {
-        console.log('Server closed');
+        logger.info('Server closed');
         process.exit(0);
       });
     });
 
     process.on('SIGINT', async () => {
-      console.log('SIGINT received, shutting down gracefully');
+      logger.info('SIGINT received, shutting down gracefully');
+      const notificationService = require('./services/notification').getNotificationService();
+      notificationService.shutdown();
       await redisClient.disconnect();
+      await db.close();
       httpServer.close(() => {
-        console.log('Server closed');
+        logger.info('Server closed');
         process.exit(0);
       });
     });
 
   } catch (error) {
-    console.error('Failed to start server:', error);
+    logger.error('Failed to start server:', error);
     process.exit(1);
   }
 }

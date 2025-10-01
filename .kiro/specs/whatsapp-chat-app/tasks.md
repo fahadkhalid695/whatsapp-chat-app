@@ -77,7 +77,7 @@
   - Create media message types and database storage
   - _Requirements: 5.1, 5.2, 5.3, 5.4, 5.5, 5.6_
 
-- [ ] 9. Build push notification system
+- [x] 9. Build push notification system
   - Integrate Firebase Cloud Messaging for push notifications
   - Implement notification sending for new messages and mentions
   - Create user notification preferences and settings
