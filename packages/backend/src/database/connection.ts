@@ -20,7 +20,7 @@ class DatabaseConnection {
     });
 
     // Handle pool events
-    this.pool.on('connect', (client: PoolClient) => {
+    this.pool.on('connect', () => {
       console.log('New database client connected');
     });
 
@@ -55,7 +55,7 @@ class DatabaseConnection {
     }
   }
 
-  public async query<T = any>(text: string, params?: any[]): Promise<QueryResult<T>> {
+  public async query<T extends Record<string, any> = any>(text: string, params?: any[]): Promise<QueryResult<T>> {
     if (!this.isConnected) {
       throw new Error('Database not connected. Call connect() first.');
     }
@@ -127,17 +127,17 @@ export const db = DatabaseConnection.getInstance();
 
 // Helper functions for common database operations
 export class DatabaseHelper {
-  static async findById<T>(table: string, id: string): Promise<T | null> {
+  static async findById<T extends Record<string, any>>(table: string, id: string): Promise<T | null> {
     const result = await db.query<T>(`SELECT * FROM ${table} WHERE id = $1`, [id]);
     return result.rows[0] || null;
   }
 
-  static async findByField<T>(table: string, field: string, value: any): Promise<T[]> {
+  static async findByField<T extends Record<string, any>>(table: string, field: string, value: any): Promise<T[]> {
     const result = await db.query<T>(`SELECT * FROM ${table} WHERE ${field} = $1`, [value]);
     return result.rows;
   }
 
-  static async insert<T>(table: string, data: Partial<T>): Promise<T> {
+  static async insert<T extends Record<string, any>>(table: string, data: Partial<T>): Promise<T> {
     const fields = Object.keys(data);
     const values = Object.values(data);
     const placeholders = values.map((_, index) => `$${index + 1}`).join(', ');
@@ -152,7 +152,7 @@ export class DatabaseHelper {
     return result.rows[0];
   }
 
-  static async update<T>(table: string, id: string, data: Partial<T>): Promise<T | null> {
+  static async update<T extends Record<string, any>>(table: string, id: string, data: Partial<T>): Promise<T | null> {
     const fields = Object.keys(data);
     const values = Object.values(data);
     const setClause = fields.map((field, index) => `${field} = $${index + 2}`).join(', ');

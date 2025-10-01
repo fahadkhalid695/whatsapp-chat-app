@@ -41,7 +41,7 @@ export const authenticateToken = (req: Request, res: Response, next: NextFunctio
 /**
  * Optional authentication middleware - doesn't fail if no token provided
  */
-export const optionalAuth = (req: Request, res: Response, next: NextFunction): void => {
+export const optionalAuth = (req: Request, _res: Response, next: NextFunction): void => {
   try {
     const authHeader = req.headers.authorization;
     const token = JWTUtils.extractTokenFromHeader(authHeader);
@@ -86,11 +86,26 @@ export const requireOwnership = (userIdParam: string = 'userId') => {
 };
 
 /**
- * Middleware to validate request body against schema
+ * Middleware to validate request data against schema
  */
-export const validateRequest = (schema: any) => {
+export const validateRequest = (schema: any, source: 'body' | 'params' | 'query' = 'body') => {
   return (req: Request, res: Response, next: NextFunction): void => {
-    const { error } = schema.validate(req.body);
+    let dataToValidate;
+    
+    switch (source) {
+      case 'params':
+        dataToValidate = req.params;
+        break;
+      case 'query':
+        dataToValidate = req.query;
+        break;
+      case 'body':
+      default:
+        dataToValidate = req.body;
+        break;
+    }
+    
+    const { error } = schema.validate(dataToValidate);
     
     if (error) {
       res.status(400).json({

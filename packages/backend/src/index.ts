@@ -4,6 +4,9 @@ import helmet from 'helmet';
 import compression from 'compression';
 import { config } from './config';
 import authRoutes from './routes/auth';
+import userRoutes from './routes/users';
+import conversationRoutes from './routes/conversations';
+import messageRoutes from './routes/messages';
 
 const app = express();
 
@@ -29,6 +32,9 @@ app.get('/health', (req, res) => {
 
 // API routes
 app.use('/api/auth', authRoutes);
+app.use('/api/users', userRoutes);
+app.use('/api/conversations', conversationRoutes);
+app.use('/api/messages', messageRoutes);
 
 // 404 handler
 app.use('*', (req, res) => {

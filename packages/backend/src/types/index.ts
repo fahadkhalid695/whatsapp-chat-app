@@ -138,6 +138,31 @@ export interface CreateConversationRequest {
   participants: string[];
 }
 
+export interface UpdateConversationRequest {
+  name?: string;
+}
+
+export interface AddParticipantsRequest {
+  participantIds: string[];
+}
+
+export interface RemoveParticipantsRequest {
+  participantIds: string[];
+}
+
+export interface UpdateAdminStatusRequest {
+  targetUserId: string;
+  makeAdmin: boolean;
+}
+
+export interface ConversationListOptions {
+  limit?: number;
+  offset?: number;
+  includeArchived?: boolean;
+  sortBy?: 'last_activity' | 'created_at';
+  sortOrder?: 'ASC' | 'DESC';
+}
+
 export interface SendMessageRequest {
   conversationId: string;
   content: MessageContent;
@@ -145,10 +170,52 @@ export interface SendMessageRequest {
   replyTo?: string;
 }
 
+export interface EditMessageRequest {
+  content: MessageContent;
+}
+
+export interface MarkAsReadRequest {
+  messageIds: string[];
+}
+
+export interface GetMessagesOptions {
+  limit?: number;
+  offset?: number;
+  before?: Date;
+}
+
+export interface SearchMessagesOptions {
+  query: string;
+  conversationId?: string;
+  limit?: number;
+  offset?: number;
+}
+
 export interface UpdateUserProfileRequest {
   displayName?: string;
   profilePicture?: string;
   status?: string;
+}
+
+export interface SyncContactsRequest {
+  contacts: Array<{
+    name: string;
+    phoneNumber: string;
+  }>;
+}
+
+export interface SearchUsersRequest {
+  query: string;
+}
+
+export interface BlockUserRequest {
+  targetUserId: string;
+}
+
+export interface PresenceStatus {
+  userId: string;
+  isOnline: boolean;
+  lastSeen: Date;
 }
 
 // Authentication interfaces
