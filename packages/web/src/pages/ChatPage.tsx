@@ -21,6 +21,7 @@ import {
   Person,
   Add,
   Info,
+  Close,
 } from '@mui/icons-material';
 import { useAuthStore } from '../store/authStore';
 import { useChatStore } from '../store/chatStore';
@@ -29,6 +30,7 @@ import { apiService } from '../services/api';
 import ConversationList from '../components/ConversationList';
 import MessageView from '../components/MessageView';
 import MessageInput from '../components/MessageInput';
+import MessageSearch from '../components/MessageSearch';
 import GroupCreationDialog from '../components/GroupCreationDialog';
 import GroupSettingsDialog from '../components/GroupSettingsDialog';
 import { MessageContent, MessageType, Conversation, Message, Contact } from '../types';
@@ -56,6 +58,7 @@ const ChatPage: React.FC = () => {
   const [chatMenuAnchor, setChatMenuAnchor] = useState<null | HTMLElement>(null);
   const [showGroupCreation, setShowGroupCreation] = useState(false);
   const [showGroupSettings, setShowGroupSettings] = useState(false);
+  const [showSearch, setShowSearch] = useState(false);
   const [contacts, setContacts] = useState<Contact[]>([]);
 
   // Load conversations and contacts
@@ -201,6 +204,19 @@ const ChatPage: React.FC = () => {
       type,
       isDeleted: false,
     });
+  };
+
+  const handleSearchMessageSelect = (message: Message) => {
+    // Switch to the conversation containing the message
+    if (message.conversationId !== activeConversationId) {
+      setActiveConversation(message.conversationId);
+    }
+    
+    // Close search
+    setShowSearch(false);
+    
+    // TODO: Scroll to the specific message in the conversation
+    // This would require additional implementation in MessageView component
   };
 
   const handleProfileMenuOpen = (event: React.MouseEvent<HTMLElement>) => {
@@ -575,7 +591,7 @@ const ChatPage: React.FC = () => {
                     }
                   </Typography>
                 </Box>
-                <IconButton>
+                <IconButton onClick={() => setShowSearch(true)}>
                   <Search />
                 </IconButton>
                 <IconButton onClick={handleChatMenuOpen}>
@@ -635,6 +651,25 @@ const ChatPage: React.FC = () => {
         <MenuItem onClick={handleChatMenuClose}>Search Messages</MenuItem>
         <MenuItem onClick={handleChatMenuClose}>Clear Chat</MenuItem>
       </Menu>
+
+      {/* Search drawer */}
+      <Drawer
+        anchor="right"
+        open={showSearch}
+        onClose={() => setShowSearch(false)}
+        sx={{
+          '& .MuiDrawer-paper': {
+            width: isMobile ? '100%' : 400,
+            maxWidth: '100%',
+          },
+        }}
+      >
+        <MessageSearch
+          conversationId={activeConversationId || undefined}
+          onMessageSelect={handleSearchMessageSelect}
+          onClose={() => setShowSearch(false)}
+        />
+      </Drawer>
 
       {/* Group creation dialog */}
       <GroupCreationDialog

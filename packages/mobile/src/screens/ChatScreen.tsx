@@ -56,14 +56,22 @@ const ChatScreen: React.FC = () => {
     navigation.setOptions({
       title: conversationName || 'Chat',
       headerRight: () => (
-        isGroup ? (
+        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
           <TouchableOpacity
             style={{ paddingHorizontal: 16 }}
-            onPress={() => navigation.navigate('GroupSettings', { conversationId })}
+            onPress={() => navigation.navigate('Search', { conversationId })}
           >
-            <Icon name="info" size={24} color="#25D366" />
+            <Icon name="search" size={24} color="#25D366" />
           </TouchableOpacity>
-        ) : null
+          {isGroup && (
+            <TouchableOpacity
+              style={{ paddingHorizontal: 16 }}
+              onPress={() => navigation.navigate('GroupSettings', { conversationId })}
+            >
+              <Icon name="info" size={24} color="#25D366" />
+            </TouchableOpacity>
+          )}
+        </View>
       ),
     });
   }, [navigation, conversationName, conversationId, conversations]);

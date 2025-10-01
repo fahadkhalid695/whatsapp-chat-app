@@ -312,17 +312,37 @@ export class MessageService {
     userId: string,
     query: string,
     conversationId?: string,
+    mediaType?: string,
     limit: number = 50,
     offset: number = 0
   ): Promise<{ messages: Message[]; total: number }> {
     // Build search conditions
     let whereClause = `
       WHERE cp.user_id = $1 
-      AND m.is_deleted = false 
-      AND (m.content->>'text' ILIKE $2 OR m.content->>'fileName' ILIKE $2)
+      AND m.is_deleted = false
     `;
-    const queryParams: any[] = [userId, `%${query}%`];
-    let paramIndex = 3;
+    const queryParams: any[] = [userId];
+    let paramIndex = 2;
+
+    // Add text search condition if query is provided
+    if (query && query.trim()) {
+      whereClause += ` AND (m.content->>'text' ILIKE $${paramIndex} OR m.content->>'fileName' ILIKE $${paramIndex})`;
+      queryParams.push(`%${query.trim()}%`);
+      paramIndex++;
+    }
+
+    // Add media type filter if specified
+    if (mediaType) {
+      if (mediaType === 'media') {
+        // Search for any media type
+        whereClause += ` AND m.type IN ('image', 'video', 'audio', 'document')`;
+      } else {
+        // Search for specific media type
+        whereClause += ` AND m.type = $${paramIndex}`;
+        queryParams.push(mediaType);
+        paramIndex++;
+      }
+    }
 
     if (conversationId) {
       whereClause += ` AND m.conversation_id = $${paramIndex}`;
@@ -367,6 +387,108 @@ export class MessageService {
     );
 
     const messages = searchResult.rows.map(row => 
+      ModelTransformer.messageEntityToMessage(
+        row,
+        row.delivered_to || [],
+        row.read_by || []
+      )
+    );
+
+    return { messages, total };
+  }
+
+  /**
+   * Search messages within a specific conversation
+   */
+  static async searchInConversation(
+    conversationId: string,
+    userId: string,
+    query: string,
+    mediaType?: string,
+    limit: number = 50,
+    offset: number = 0
+  ): Promise<{ messages: Message[]; total: number }> {
+    return this.searchMessages(userId, query, conversationId, mediaType, limit, offset);
+  }
+
+  /**
+   * Get media messages from conversations
+   */
+  static async getMediaMessages(
+    userId: string,
+    conversationId?: string,
+    mediaTypes?: string[],
+    limit: number = 50,
+    offset: number = 0
+  ): Promise<{ messages: Message[]; total: number }> {
+    // Build search conditions for media only
+    let whereClause = `
+      WHERE cp.user_id = $1 
+      AND m.is_deleted = false
+      AND m.type IN ('image', 'video', 'audio', 'document')
+    `;
+    const queryParams: any[] = [userId];
+    let paramIndex = 2;
+
+    // Filter by specific media types if provided
+    if (mediaTypes && mediaTypes.length > 0) {
+      const validTypes = mediaTypes.filter(type => 
+        ['image', 'video', 'audio', 'document'].includes(type)
+      );
+      if (validTypes.length > 0) {
+        whereClause = whereClause.replace(
+          "m.type IN ('image', 'video', 'audio', 'document')",
+          `m.type = ANY($${paramIndex})`
+        );
+        queryParams.push(validTypes);
+        paramIndex++;
+      }
+    }
+
+    // Add conversation filter if specified
+    if (conversationId) {
+      whereClause += ` AND m.conversation_id = $${paramIndex}`;
+      queryParams.push(conversationId);
+      paramIndex++;
+    }
+
+    // Get total count
+    const countResult = await db.query(
+      `SELECT COUNT(*) as total
+       FROM messages m
+       JOIN conversation_participants cp ON m.conversation_id = cp.conversation_id
+       ${whereClause}`,
+      queryParams
+    );
+    const total = parseInt(countResult.rows[0].total);
+
+    // Get media messages
+    const mediaResult = await db.query<MessageEntity & {
+      delivered_to: string[];
+      read_by: string[];
+    }>(
+      `SELECT 
+         m.*,
+         COALESCE(
+           ARRAY_AGG(DISTINCT ms_delivered.user_id) FILTER (WHERE ms_delivered.status = 'delivered'),
+           ARRAY[]::uuid[]
+         ) as delivered_to,
+         COALESCE(
+           ARRAY_AGG(DISTINCT ms_read.user_id) FILTER (WHERE ms_read.status = 'read'),
+           ARRAY[]::uuid[]
+         ) as read_by
+       FROM messages m
+       JOIN conversation_participants cp ON m.conversation_id = cp.conversation_id
+       LEFT JOIN message_status ms_delivered ON m.id = ms_delivered.message_id AND ms_delivered.status = 'delivered'
+       LEFT JOIN message_status ms_read ON m.id = ms_read.message_id AND ms_read.status = 'read'
+       ${whereClause}
+       GROUP BY m.id
+       ORDER BY m.timestamp DESC
+       LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`,
+      [...queryParams, limit, offset]
+    );
+
+    const messages = mediaResult.rows.map(row => 
       ModelTransformer.messageEntityToMessage(
         row,
         row.delivered_to || [],

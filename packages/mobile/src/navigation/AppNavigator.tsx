@@ -17,6 +17,7 @@ import ContactsScreen from '../screens/ContactsScreen';
 import SettingsScreen from '../screens/SettingsScreen';
 import GroupCreationScreen from '../screens/GroupCreationScreen';
 import GroupSettingsScreen from '../screens/GroupSettingsScreen';
+import SearchScreen from '../screens/SearchScreen';
 
 const Stack = createStackNavigator<RootStackParamList>();
 const Tab = createBottomTabNavigator<MainTabParamList>();
@@ -97,6 +98,11 @@ const AppNavigator: React.FC = () => {
               name="GroupSettings" 
               component={GroupSettingsScreen}
               options={{ headerShown: true, title: 'Group Info' }}
+            />
+            <Stack.Screen 
+              name="Search" 
+              component={SearchScreen}
+              options={{ headerShown: true, title: 'Search Messages' }}
             />
           </>
         )}

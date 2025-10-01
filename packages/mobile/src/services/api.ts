@@ -98,3 +98,54 @@ class ApiClient {
 
 export const apiClient = new ApiClient();
 export const apiService = apiClient;
+
+// Message search functions
+export const searchMessages = async (
+  query?: string,
+  conversationId?: string,
+  mediaType?: string,
+  limit: number = 50,
+  offset: number = 0
+) => {
+  const params = new URLSearchParams();
+  if (query) params.append('q', query);
+  if (conversationId) params.append('conversationId', conversationId);
+  if (mediaType) params.append('mediaType', mediaType);
+  params.append('limit', limit.toString());
+  params.append('offset', offset.toString());
+
+  return apiClient.get(`/messages/search?${params.toString()}`);
+};
+
+export const searchInConversation = async (
+  conversationId: string,
+  query?: string,
+  mediaType?: string,
+  limit: number = 50,
+  offset: number = 0
+) => {
+  const params = new URLSearchParams();
+  if (query) params.append('q', query);
+  if (mediaType) params.append('mediaType', mediaType);
+  params.append('limit', limit.toString());
+  params.append('offset', offset.toString());
+
+  return apiClient.get(`/conversations/${conversationId}/messages/search?${params.toString()}`);
+};
+
+export const getMediaMessages = async (options: {
+  conversationId?: string;
+  mediaTypes?: string[];
+  limit?: number;
+  offset?: number;
+}) => {
+  const params = new URLSearchParams();
+  if (options.conversationId) params.append('conversationId', options.conversationId);
+  if (options.mediaTypes) {
+    options.mediaTypes.forEach(type => params.append('mediaTypes', type));
+  }
+  params.append('limit', (options.limit || 50).toString());
+  params.append('offset', (options.offset || 0).toString());
+
+  return apiClient.get(`/messages/media?${params.toString()}`);
+};

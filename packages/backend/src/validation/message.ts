@@ -53,8 +53,25 @@ export const getMessagesQuerySchema = Joi.object({
 
 // Search messages query parameters schema
 export const searchMessagesQuerySchema = Joi.object({
-  q: Joi.string().min(1).max(100).required(),
+  q: Joi.string().min(1).max(100).optional(),
   conversationId: Joi.string().uuid().optional(),
+  mediaType: Joi.string().valid('text', 'image', 'video', 'audio', 'document', 'media').optional(),
+  limit: Joi.number().integer().min(1).max(100).default(50),
+  offset: Joi.number().integer().min(0).default(0),
+}).custom((value, helpers) => {
+  // At least query or mediaType must be provided
+  if (!value.q && !value.mediaType) {
+    return helpers.error('object.missing', { peersWithLabels: ['q', 'mediaType'] });
+  }
+  return value;
+});
+
+// Media messages query parameters schema
+export const getMediaMessagesQuerySchema = Joi.object({
+  conversationId: Joi.string().uuid().optional(),
+  mediaTypes: Joi.array().items(
+    Joi.string().valid('image', 'video', 'audio', 'document')
+  ).optional(),
   limit: Joi.number().integer().min(1).max(100).default(50),
   offset: Joi.number().integer().min(0).default(0),
 });

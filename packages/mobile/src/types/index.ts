@@ -83,9 +83,10 @@ export type RootStackParamList = {
   Verification: { phoneNumber: string; verificationId: string };
   ProfileSetup: undefined;
   Main: undefined;
-  Chat: { conversationId: string; conversationName?: string };
+  Chat: { conversationId: string; conversationName?: string; messageId?: string };
   GroupCreation: undefined;
   GroupSettings: { conversationId: string };
+  Search: { conversationId?: string };
 };
 
 export type MainTabParamList = {

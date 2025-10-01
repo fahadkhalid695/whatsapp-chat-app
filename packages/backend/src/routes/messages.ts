@@ -7,6 +7,7 @@ import {
   markAsReadSchema,
   getMessagesQuerySchema,
   searchMessagesQuerySchema,
+  getMediaMessagesQuerySchema,
   messageIdParamSchema,
   conversationIdParamSchema,
   validateMessageRequest,
@@ -338,12 +339,13 @@ router.get('/search',
         return;
       }
 
-      const { q, conversationId, limit, offset } = req.query as any;
+      const { q, conversationId, mediaType, limit, offset } = req.query as any;
       
       const result = await MessageService.searchMessages(
         req.user.userId,
         q,
         conversationId,
+        mediaType,
         limit,
         offset
       );
@@ -365,6 +367,124 @@ router.get('/search',
       res.status(500).json({
         success: false,
         error: 'Failed to search messages',
+        code: 'SERVER_ERROR',
+      });
+    }
+  }
+);
+
+/**
+ * GET /conversations/:conversationId/messages/search
+ * Search messages within a specific conversation
+ */
+router.get('/conversations/:conversationId/messages/search',
+  authenticateToken,
+  validateMessageParams(conversationIdParamSchema),
+  validateMessageQuery(searchMessagesQuerySchema),
+  async (req: Request, res: Response): Promise<void> => {
+    try {
+      if (!req.user) {
+        res.status(401).json({
+          success: false,
+          error: 'Authentication required',
+          code: 'AUTH_004',
+        });
+        return;
+      }
+
+      const { conversationId } = req.params;
+      const { q, mediaType, limit, offset } = req.query as any;
+      
+      const result = await MessageService.searchInConversation(
+        conversationId,
+        req.user.userId,
+        q,
+        mediaType,
+        limit,
+        offset
+      );
+
+      res.status(200).json({
+        success: true,
+        data: result.messages,
+        pagination: {
+          total: result.total,
+          limit: limit || 50,
+          offset: offset || 0,
+          hasMore: (offset || 0) + (limit || 50) < result.total,
+        },
+        query: q,
+        conversationId,
+      });
+    } catch (error) {
+      console.error('Search conversation messages error:', error);
+      
+      const errorMessage = error instanceof Error ? error.message : 'Failed to search messages';
+      let statusCode = 500;
+      let errorCode = 'SERVER_ERROR';
+
+      if (errorMessage.includes('not a participant')) {
+        statusCode = 403;
+        errorCode = 'MSG_001';
+      }
+
+      res.status(statusCode).json({
+        success: false,
+        error: errorMessage,
+        code: errorCode,
+      });
+    }
+  }
+);
+
+/**
+ * GET /messages/media
+ * Get media messages across conversations
+ */
+router.get('/media',
+  authenticateToken,
+  validateMessageQuery(getMediaMessagesQuerySchema),
+  async (req: Request, res: Response): Promise<void> => {
+    try {
+      if (!req.user) {
+        res.status(401).json({
+          success: false,
+          error: 'Authentication required',
+          code: 'AUTH_004',
+        });
+        return;
+      }
+
+      const { conversationId, mediaTypes, limit, offset } = req.query as any;
+      
+      const result = await MessageService.getMediaMessages(
+        req.user.userId,
+        conversationId,
+        mediaTypes,
+        limit,
+        offset
+      );
+
+      res.status(200).json({
+        success: true,
+        data: result.messages,
+        pagination: {
+          total: result.total,
+          limit: limit || 50,
+          offset: offset || 0,
+          hasMore: (offset || 0) + (limit || 50) < result.total,
+        },
+        filters: {
+          conversationId,
+          mediaTypes,
+        },
+      });
+    } catch (error) {
+      console.error('Get media messages error:', error);
+      
+      res.status(500).json({
+        success: false,
+        error: 'Failed to get media messages',
         code: 'SERVER_ERROR',
       });
     }

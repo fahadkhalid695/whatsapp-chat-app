@@ -187,8 +187,19 @@ export interface GetMessagesOptions {
 export interface SearchMessagesOptions {
   query: string;
   conversationId?: string;
+  mediaType?: string;
   limit?: number;
   offset?: number;
+}
+
+export interface SearchContext {
+  conversationName?: string;
+  conversationType: 'direct' | 'group';
+  senderName: string;
+}
+
+export interface MessageWithSearchContext extends Message {
+  searchContext?: SearchContext;
 }
 
 export interface UpdateUserProfileRequest {
