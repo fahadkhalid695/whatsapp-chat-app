@@ -1,4 +1,6 @@
 import { create } from 'zustand';
+import { apiClient } from '../services/api';
+import { socketService } from '../services/socket';
 
 export interface Message {
   id: string;
@@ -48,7 +50,13 @@ interface ChatActions {
   setTyping: (conversationId: string, isTyping: boolean) => void;
   setSearchQuery: (query: string) => void;
   updateContactStatus: (contactId: string, isOnline: boolean) => void;
-  initializeConversations: () => void;
+  initializeConversations: () => Promise<void>;
+  loadMessages: (conversationId: string) => Promise<void>;
+  sendMessage: (conversationId: string, content: any, type?: string, replyTo?: string) => Promise<void>;
+  editMessage: (messageId: string, content: any) => Promise<void>;
+  deleteMessage: (messageId: string) => Promise<void>;
+  createConversation: (type: 'direct' | 'group', participants: string[], name?: string) => Promise<string>;
+  searchMessages: (query: string) => Promise<{ messages: Message[]; conversations: Conversation[] }>;
 }
 
 type ChatStore = ChatState & ChatActions;
@@ -226,11 +234,15 @@ export const useChatStore = create<ChatStore>((set, get) => ({
   searchQuery: '',
   isLoading: false,
 
-  setActiveConversation: (id) => {
+  setActiveConversation: async (id) => {
     set({ activeConversationId: id });
     if (id) {
-      // Mark messages as read when opening conversation
+      // Load messages for this conversation
+      await get().loadMessages(id);
+      // Mark messages as read
       get().markAsRead(id);
+      // Join conversation room for real-time updates
+      socketService.joinConversation(id);
     }
   },
 
@@ -273,7 +285,23 @@ export const useChatStore = create<ChatStore>((set, get) => ({
     }));
   },
 
-  markAsRead: (conversationId) => {
+  markAsRead: async (conversationId) => {
+    const conversation = get().conversations.find(c => c.id === conversationId);
+    if (!conversation) return;
+
+    const unreadMessageIds = conversation.messages
+      .filter(msg => msg.sender !== 'me' && msg.status !== 'read')
+      .map(msg => msg.id);
+
+    if (unreadMessageIds.length > 0) {
+      try {
+        await apiClient.markAsRead(conversationId, unreadMessageIds);
+        socketService.markAsRead(conversationId, unreadMessageIds);
+      } catch (error) {
+        console.error('Failed to mark messages as read:', error);
+      }
+    }
+
     set((state) => ({
       conversations: state.conversations.map((conv) =>
         conv.id === conversationId
@@ -283,6 +311,9 @@ export const useChatStore = create<ChatStore>((set, get) => ({
                 ...conv.contact,
                 unreadCount: 0,
               },
+              messages: conv.messages.map(msg => 
+                msg.sender !== 'me' ? { ...msg, status: 'read' } : msg
+              ),
             }
           : conv
       ),
@@ -319,14 +350,208 @@ export const useChatStore = create<ChatStore>((set, get) => ({
     }));
   },
 
-  initializeConversations: () => {
-    const conversations: Conversation[] = mockContacts.map((contact) => ({
-      id: contact.id,
-      contact,
-      messages: mockMessages[contact.id] || [],
-      isTyping: false,
-    }));
+  initializeConversations: async () => {
+    set({ isLoading: true });
+    
+    try {
+      // Try to load real conversations from API
+      const apiConversations = await apiClient.getConversations();
+      
+      // Convert API format to frontend format
+      const conversations: Conversation[] = apiConversations.map((apiConv: any) => ({
+        id: apiConv.id,
+        contact: {
+          id: apiConv.participants[0], // Simplified for direct chats
+          name: apiConv.name || 'Unknown',
+          avatar: '',
+          phoneNumber: '',
+          lastMessage: apiConv.lastMessage?.content?.text || '',
+          timestamp: new Date(apiConv.lastActivity).toLocaleTimeString('en-US', {
+            hour: 'numeric',
+            minute: '2-digit',
+            hour12: true,
+          }),
+          unreadCount: 0,
+          isOnline: false,
+        },
+        messages: [],
+        isTyping: false,
+      }));
 
-    set({ conversations, activeConversationId: conversations[0]?.id || null });
+      set({ 
+        conversations, 
+        activeConversationId: conversations[0]?.id || null,
+        isLoading: false 
+      });
+
+    } catch (error) {
+      console.warn('Failed to load conversations from API, using mock data:', error);
+      
+      // Fallback to mock data
+      const conversations: Conversation[] = mockContacts.map((contact) => ({
+        id: contact.id,
+        contact,
+        messages: mockMessages[contact.id] || [],
+        isTyping: false,
+      }));
+
+      set({ 
+        conversations, 
+        activeConversationId: conversations[0]?.id || null,
+        isLoading: false 
+      });
+    }
+  },
+
+  loadMessages: async (conversationId) => {
+    try {
+      const { messages } = await apiClient.getMessages(conversationId);
+      
+      // Convert API messages to frontend format
+      const frontendMessages: Message[] = messages.map((apiMsg: any) => ({
+        id: apiMsg.id,
+        text: apiMsg.content.text || '',
+        sender: apiMsg.senderId === 'current-user-id' ? 'me' : 'other', // This should use actual user ID
+        timestamp: new Date(apiMsg.timestamp),
+        status: 'read',
+        type: apiMsg.type,
+        mediaUrl: apiMsg.content.mediaUrl,
+        fileName: apiMsg.content.fileName,
+        replyTo: apiMsg.replyTo,
+        editedAt: apiMsg.editedAt ? new Date(apiMsg.editedAt) : undefined,
+      }));
+
+      set((state) => ({
+        conversations: state.conversations.map((conv) =>
+          conv.id === conversationId
+            ? { ...conv, messages: frontendMessages }
+            : conv
+        ),
+      }));
+
+    } catch (error) {
+      console.error('Failed to load messages:', error);
+      // Keep existing messages if API fails
+    }
+  },
+
+  sendMessage: async (conversationId, content, type = 'text', replyTo) => {
+    try {
+      // Send via API
+      const message = await apiClient.sendMessage(conversationId, content, type, replyTo);
+      
+      // Also send via socket for real-time delivery
+      socketService.sendMessage(conversationId, content, type, replyTo);
+      
+      // Add to local state immediately for optimistic updates
+      get().addMessage(conversationId, {
+        text: content.text || '',
+        sender: 'me',
+        status: 'sent',
+        type: type as any,
+        mediaUrl: content.mediaUrl,
+        fileName: content.fileName,
+        replyTo,
+      });
+
+    } catch (error) {
+      console.error('Failed to send message:', error);
+      // Still add to local state for offline support
+      get().addMessage(conversationId, {
+        text: content.text || '',
+        sender: 'me',
+        status: 'sent',
+        type: type as any,
+        mediaUrl: content.mediaUrl,
+        fileName: content.fileName,
+        replyTo,
+      });
+    }
+  },
+
+  editMessage: async (messageId, content) => {
+    try {
+      await apiClient.editMessage(messageId, content);
+      socketService.editMessage(messageId, content);
+      
+      // Update local state
+      set((state) => ({
+        conversations: state.conversations.map((conv) => ({
+          ...conv,
+          messages: conv.messages.map((msg) =>
+            msg.id === messageId
+              ? { ...msg, text: content.text || msg.text, editedAt: new Date() }
+              : msg
+          ),
+        })),
+      }));
+
+    } catch (error) {
+      console.error('Failed to edit message:', error);
+    }
+  },
+
+  deleteMessage: async (messageId) => {
+    try {
+      await apiClient.deleteMessage(messageId);
+      socketService.deleteMessage(messageId);
+      
+      // Remove from local state
+      set((state) => ({
+        conversations: state.conversations.map((conv) => ({
+          ...conv,
+          messages: conv.messages.filter((msg) => msg.id !== messageId),
+        })),
+      }));
+
+    } catch (error) {
+      console.error('Failed to delete message:', error);
+    }
+  },
+
+  createConversation: async (type, participants, name) => {
+    try {
+      const conversation = await apiClient.createConversation(type, participants, name);
+      
+      // Add to local state
+      const newConversation: Conversation = {
+        id: conversation.id,
+        contact: {
+          id: participants[0],
+          name: name || 'New Conversation',
+          avatar: '',
+          phoneNumber: '',
+          lastMessage: '',
+          timestamp: new Date().toLocaleTimeString('en-US', {
+            hour: 'numeric',
+            minute: '2-digit',
+            hour12: true,
+          }),
+          unreadCount: 0,
+          isOnline: false,
+        },
+        messages: [],
+        isTyping: false,
+      };
+
+      set((state) => ({
+        conversations: [newConversation, ...state.conversations],
+      }));
+
+      return conversation.id;
+
+    } catch (error) {
+      console.error('Failed to create conversation:', error);
+      throw error;
+    }
+  },
+
+  searchMessages: async (query) => {
+    try {
+      return await apiClient.searchMessages(query);
+    } catch (error) {
+      console.error('Failed to search messages:', error);
+      return { messages: [], conversations: [] };
+    }
   },
 }));

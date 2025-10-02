@@ -14,6 +14,7 @@ import {
 import { WhatsApp, Phone } from '@mui/icons-material';
 import { useForm } from 'react-hook-form';
 import { useAuthStore } from '../store/authStore';
+import { apiClient } from '../services/api';
 
 interface LoginForm {
   phoneNumber: string;
@@ -35,24 +36,41 @@ const LoginPage: React.FC = () => {
       setError('');
       setLoading(true);
       
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1500));
+      // Try real API first
+      try {
+        const { verificationId } = await apiClient.login(data.phoneNumber);
+        
+        // In a real app, you'd show verification code input
+        // For demo, we'll simulate entering the code
+        const mockCode = '123456';
+        const { user, token } = await apiClient.verifyCode(data.phoneNumber, mockCode);
+        
+        setToken(token);
+        setUser(user);
+        navigate('/chat');
+        
+      } catch (apiError) {
+        console.warn('API login failed, using mock login:', apiError);
+        
+        // Fallback to mock login
+        await new Promise(resolve => setTimeout(resolve, 1500));
+        
+        setToken('mock-jwt-token');
+        setUser({
+          id: '1',
+          phoneNumber: data.phoneNumber,
+          displayName: 'John Doe',
+          profilePicture: 'https://i.pravatar.cc/150?img=1',
+          status: 'Hey there! I am using WhatsApp.',
+          lastSeen: new Date(),
+          isOnline: true,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        });
+        
+        navigate('/chat');
+      }
       
-      // Mock successful login
-      setToken('mock-jwt-token');
-      setUser({
-        id: '1',
-        phoneNumber: data.phoneNumber,
-        displayName: 'John Doe',
-        profilePicture: 'https://i.pravatar.cc/150?img=1',
-        status: 'Hey there! I am using WhatsApp.',
-        lastSeen: new Date(),
-        isOnline: true,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      });
-      
-      navigate('/chat');
     } catch (err: any) {
       setError('Failed to send verification code. Please try again.');
     } finally {

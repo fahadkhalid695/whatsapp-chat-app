@@ -58,6 +58,8 @@ import { useChatStore, Message, Contact } from '../store/chatStore';
 import MessageSearch from '../components/MessageSearch';
 import GroupCreationDialog from '../components/GroupCreationDialog';
 import MediaGallery from '../components/MediaGallery';
+import { socketService } from '../services/socket';
+import { apiClient } from '../services/api';
 // import MessageReactions from '../components/MessageReactions';
 // import VirtualizedMessageList from '../components/VirtualizedMessageList';
 // import GroupCreationDialog from '../components/GroupCreationDialog';
@@ -88,6 +90,10 @@ const ChatPage: React.FC = () => {
     addMessage,
     setSearchQuery,
     initializeConversations,
+    sendMessage,
+    editMessage,
+    deleteMessage,
+    createConversation,
   } = useChatStore();
   
   const [newMessage, setNewMessage] = useState('');
@@ -128,35 +134,27 @@ const ChatPage: React.FC = () => {
     scrollToBottom();
   }, [activeConversation?.messages]);
 
-  const handleSendMessage = () => {
+  const handleSendMessage = async () => {
     if (newMessage.trim() && activeConversationId) {
-      addMessage(activeConversationId, {
-        text: newMessage,
-        sender: 'me',
-        status: 'sent',
-        replyTo: replyingTo?.id,
-      });
-      setNewMessage('');
-      setReplyingTo(null);
+      const messageContent = { text: newMessage };
       
-      // Simulate response after 2 seconds
-      setTimeout(() => {
-        const responses = [
-          "That's interesting!",
-          "I see what you mean 🤔",
-          "Thanks for sharing!",
-          "Got it! 👍",
-          "Sounds good to me",
-          "Let me think about that...",
-        ];
-        const randomResponse = responses[Math.floor(Math.random() * responses.length)];
+      try {
+        // Send via real API and socket
+        await sendMessage(activeConversationId, messageContent, 'text', replyingTo?.id);
         
-        addMessage(activeConversationId, {
-          text: randomResponse,
-          sender: 'other',
-          status: 'read',
-        });
-      }, 2000);
+        setNewMessage('');
+        setReplyingTo(null);
+        setIsTyping(false);
+        
+        // Stop typing indicator
+        if (typingTimeoutRef.current) {
+          clearTimeout(typingTimeoutRef.current);
+        }
+        
+      } catch (error) {
+        console.error('Failed to send message:', error);
+        // Message was already added optimistically, so user sees it
+      }
     }
   };
 
@@ -171,12 +169,9 @@ const ChatPage: React.FC = () => {
     setNewMessage(value);
     
     // Show typing indicator
-    if (!isTyping && value.trim()) {
+    if (!isTyping && value.trim() && activeConversationId) {
       setIsTyping(true);
-      if (activeConversationId) {
-        // In a real app, this would send typing status to server
-        console.log('Started typing in conversation:', activeConversationId);
-      }
+      socketService.startTyping(activeConversationId);
     }
 
     // Clear existing timeout
@@ -188,7 +183,7 @@ const ChatPage: React.FC = () => {
     typingTimeoutRef.current = setTimeout(() => {
       setIsTyping(false);
       if (activeConversationId) {
-        console.log('Stopped typing in conversation:', activeConversationId);
+        socketService.stopTyping(activeConversationId);
       }
     }, 1000);
   };
@@ -272,15 +267,13 @@ const ChatPage: React.FC = () => {
     setGroupSettingsOpen(true);
   };
 
-  const handleDeleteMessage = (messageId: string) => {
-    if (activeConversationId) {
-      // In a real app, this would delete from the store and sync with server
-      console.log('Deleting message:', messageId);
-      // For demo, we'll just show a confirmation
-      if (window.confirm('Delete this message?')) {
-        // Remove message from conversation
-        // This is a simplified version - in real app you'd use proper state management
-        console.log('Message deleted:', messageId);
+  const handleDeleteMessage = async (messageId: string) => {
+    if (window.confirm('Delete this message?')) {
+      try {
+        await deleteMessage(messageId);
+      } catch (error) {
+        console.error('Failed to delete message:', error);
+        alert('Failed to delete message. Please try again.');
       }
     }
   };
@@ -295,11 +288,15 @@ const ChatPage: React.FC = () => {
     alert(`Forwarding: "${message.text}"\n\nIn a real app, this would open a contact selection dialog.`);
   };
 
-  const handleSaveEdit = () => {
-    if (editingMessage && activeConversationId) {
-      // In a real app, this would update the message in the store and sync with server
-      console.log('Saving edit:', editingMessage);
-      setEditingMessage(null);
+  const handleSaveEdit = async () => {
+    if (editingMessage) {
+      try {
+        await editMessage(editingMessage.id, { text: editingMessage.text });
+        setEditingMessage(null);
+      } catch (error) {
+        console.error('Failed to edit message:', error);
+        alert('Failed to edit message. Please try again.');
+      }
     }
   };
 
@@ -1181,26 +1178,53 @@ const ChatPage: React.FC = () => {
                     <EmojiEmotions />
                   </IconButton>
                   <IconButton
-                    onClick={() => {
-                      // Simulate media upload
-                      if (activeConversationId) {
-                        const mediaTypes = [
-                          { type: 'image', url: 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=400&h=300&fit=crop', text: 'Beautiful sunset 🌅' },
-                          { type: 'image', url: 'https://images.unsplash.com/photo-1441974231531-c6227db76b6e?w=400&h=300&fit=crop', text: 'Forest path 🌲' },
-                          { type: 'audio', url: 'data:audio/wav;base64,demo', text: 'Voice message' },
-                        ];
-                        const randomMedia = mediaTypes[Math.floor(Math.random() * mediaTypes.length)];
-                        
-                        addMessage(activeConversationId, {
-                          text: randomMedia.text,
-                          sender: 'me',
-                          status: 'sent',
-                          type: randomMedia.type as any,
-                          mediaUrl: randomMedia.url,
-                          replyTo: replyingTo?.id,
-                        });
-                        setReplyingTo(null);
-                      }
+                    onClick={async () => {
+                      // Create file input for media upload
+                      const input = document.createElement('input');
+                      input.type = 'file';
+                      input.accept = 'image/*,video/*,audio/*';
+                      input.onchange = async (e) => {
+                        const file = (e.target as HTMLInputElement).files?.[0];
+                        if (file && activeConversationId) {
+                          try {
+                            // Upload media to server
+                            const { mediaId, url } = await apiClient.uploadMedia(file);
+                            
+                            // Send message with media
+                            await sendMessage(activeConversationId, {
+                              text: `Shared ${file.type.split('/')[0]}`,
+                              mediaId,
+                              mediaUrl: url,
+                              fileName: file.name,
+                              fileSize: file.size,
+                            }, file.type.split('/')[0], replyingTo?.id);
+                            
+                            setReplyingTo(null);
+                            
+                          } catch (error) {
+                            console.error('Failed to upload media:', error);
+                            
+                            // Fallback to demo media
+                            const mediaTypes = [
+                              { type: 'image', url: 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=400&h=300&fit=crop', text: 'Beautiful sunset 🌅' },
+                              { type: 'image', url: 'https://images.unsplash.com/photo-1441974231531-c6227db76b6e?w=400&h=300&fit=crop', text: 'Forest path 🌲' },
+                              { type: 'audio', url: 'data:audio/wav;base64,demo', text: 'Voice message' },
+                            ];
+                            const randomMedia = mediaTypes[Math.floor(Math.random() * mediaTypes.length)];
+                            
+                            addMessage(activeConversationId, {
+                              text: randomMedia.text,
+                              sender: 'me',
+                              status: 'sent',
+                              type: randomMedia.type as any,
+                              mediaUrl: randomMedia.url,
+                              replyTo: replyingTo?.id,
+                            });
+                            setReplyingTo(null);
+                          }
+                        }
+                      };
+                      input.click();
                     }}
                   >
                     <AttachFile />

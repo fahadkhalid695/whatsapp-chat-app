@@ -3,6 +3,62 @@ import { useAuthStore } from '../store/authStore';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
 
+// API Response types matching backend
+interface ApiResponse<T = any> {
+  success: boolean;
+  data: T;
+  message?: string;
+  error?: string;
+}
+
+interface User {
+  id: string;
+  phoneNumber: string;
+  displayName: string;
+  profilePicture?: string;
+  status: string;
+  lastSeen: Date;
+  isOnline: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+interface Conversation {
+  id: string;
+  type: 'direct' | 'group';
+  name?: string;
+  participants: string[];
+  admins?: string[];
+  lastMessage?: Message;
+  lastActivity: Date;
+  isArchived: boolean;
+  isMuted: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+interface Message {
+  id: string;
+  conversationId: string;
+  senderId: string;
+  content: {
+    text?: string;
+    mediaId?: string;
+    mediaType?: 'image' | 'video' | 'audio' | 'document';
+    mediaUrl?: string;
+    thumbnailUrl?: string;
+    fileName?: string;
+    fileSize?: number;
+  };
+  type: 'text' | 'image' | 'video' | 'audio' | 'document' | 'system';
+  timestamp: Date;
+  deliveredTo: string[];
+  readBy: string[];
+  isDeleted: boolean;
+  replyTo?: string;
+  editedAt?: Date;
+}
+
 class ApiClient {
   private client: AxiosInstance;
   private reconnectAttempts = 0;
@@ -217,6 +273,103 @@ class ApiClient {
   getConnectionStatus(): 'online' | 'offline' | 'reconnecting' {
     if (this.reconnectAttempts > 0) return 'reconnecting';
     return navigator.onLine ? 'online' : 'offline';
+  }
+
+  // Authentication API methods
+  async login(phoneNumber: string): Promise<{ verificationId: string }> {
+    return this.post('/auth/login', { phoneNumber });
+  }
+
+  async verifyCode(phoneNumber: string, code: string): Promise<{ user: User; token: string }> {
+    return this.post('/auth/verify', { phoneNumber, code });
+  }
+
+  async refreshToken(): Promise<{ token: string }> {
+    return this.post('/auth/refresh');
+  }
+
+  // User API methods
+  async getProfile(): Promise<User> {
+    return this.get('/users/profile');
+  }
+
+  async updateProfile(updates: Partial<User>): Promise<User> {
+    return this.put('/users/profile', updates);
+  }
+
+  async getContacts(): Promise<User[]> {
+    return this.get('/users/contacts');
+  }
+
+  async syncContacts(contacts: { name: string; phoneNumber: string }[]): Promise<User[]> {
+    return this.post('/users/sync-contacts', { contacts });
+  }
+
+  // Conversation API methods
+  async getConversations(): Promise<Conversation[]> {
+    return this.get('/conversations');
+  }
+
+  async createConversation(type: 'direct' | 'group', participants: string[], name?: string): Promise<Conversation> {
+    return this.post('/conversations', { type, participants, name });
+  }
+
+  async getConversation(id: string): Promise<Conversation> {
+    return this.get(`/conversations/${id}`);
+  }
+
+  async updateConversation(id: string, updates: Partial<Conversation>): Promise<Conversation> {
+    return this.put(`/conversations/${id}`, updates);
+  }
+
+  async deleteConversation(id: string): Promise<void> {
+    return this.delete(`/conversations/${id}`);
+  }
+
+  // Message API methods
+  async getMessages(conversationId: string, page = 1, limit = 50): Promise<{ messages: Message[]; hasMore: boolean }> {
+    return this.get(`/messages/${conversationId}?page=${page}&limit=${limit}`);
+  }
+
+  async sendMessage(conversationId: string, content: any, type: string = 'text', replyTo?: string): Promise<Message> {
+    return this.post('/messages', { conversationId, content, type, replyTo });
+  }
+
+  async editMessage(messageId: string, content: any): Promise<Message> {
+    return this.put(`/messages/${messageId}`, { content });
+  }
+
+  async deleteMessage(messageId: string): Promise<void> {
+    return this.delete(`/messages/${messageId}`);
+  }
+
+  async markAsRead(conversationId: string, messageIds: string[]): Promise<void> {
+    return this.post(`/messages/read`, { conversationId, messageIds });
+  }
+
+  // Media API methods
+  async uploadMedia(file: File, onProgress?: (progress: number) => void): Promise<{ mediaId: string; url: string; thumbnailUrl?: string }> {
+    return this.uploadFile('/media/upload', file, onProgress);
+  }
+
+  async getMediaUrl(mediaId: string): Promise<{ url: string; thumbnailUrl?: string }> {
+    return this.get(`/media/${mediaId}`);
+  }
+
+  // Search API methods
+  async searchMessages(query: string, conversationId?: string): Promise<{ messages: Message[]; conversations: Conversation[] }> {
+    const params = new URLSearchParams({ query });
+    if (conversationId) params.append('conversationId', conversationId);
+    return this.get(`/messages/search?${params}`);
+  }
+
+  // Notification API methods
+  async updateNotificationSettings(settings: any): Promise<void> {
+    return this.put('/notifications/settings', settings);
+  }
+
+  async getNotificationSettings(): Promise<any> {
+    return this.get('/notifications/settings');
   }
 }
 

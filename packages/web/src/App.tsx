@@ -7,6 +7,7 @@ import LoginPage from './pages/LoginPage';
 import ChatPage from './pages/ChatPage';
 import TestComponent from './TestComponent';
 import { theme } from './theme';
+import { socketService } from './services/socket';
 
 
 
@@ -17,15 +18,20 @@ const App: React.FC = () => {
   
   console.log('🔐 Auth state:', { isAuthenticated, hasToken: !!token, hasUser: !!user });
 
-  // Commented out socket connection for now
-  // useEffect(() => {
-  //   if (isAuthenticated && token) {
-  //     socketService.connect();
-  //   }
-  //   return () => {
-  //     socketService.disconnect();
-  //   };
-  // }, [isAuthenticated, token]);
+  // Socket connection management
+  useEffect(() => {
+    if (isAuthenticated && token) {
+      console.log('🔌 Connecting to socket server...');
+      socketService.connect();
+    } else {
+      console.log('🔌 Disconnecting from socket server...');
+      socketService.disconnect();
+    }
+    
+    return () => {
+      socketService.disconnect();
+    };
+  }, [isAuthenticated, token]);
 
   return (
     <ThemeProvider theme={theme}>

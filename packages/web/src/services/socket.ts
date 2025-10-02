@@ -2,39 +2,11 @@ import { io, Socket } from 'socket.io-client';
 import { useAuthStore } from '../store/authStore';
 import { useChatStore } from '../store/chatStore';
 
-interface SocketMessage {
-  id: string;
-  conversationId: string;
-  senderId: string;
-  content: any;
-  type: string;
-  timestamp: string;
-  deliveredTo: string[];
-  readBy: string[];
-}
-
-interface TypingEvent {
-  userId: string;
-  conversationId: string;
-  isTyping: boolean;
-}
-
-interface PresenceEvent {
-  userId: string;
-  isOnline: boolean;
-  lastSeen?: string;
-}
-
 class SocketService {
   private socket: Socket | null = null;
   private reconnectAttempts = 0;
-  private maxReconnectAttempts = 10;
-  private reconnectTimer: NodeJS.Timeout | null = null;
-  private heartbeatInterval: NodeJS.Timeout | null = null;
-  private connectionStatus: 'connecting' | 'connected' | 'disconnected' | 'reconnecting' = 'disconnected';
-  private eventListeners: Map<string, Function[]> = new Map();
-  private messageQueue: any[] = [];
-  private isOnline = navigator.onLine;
+  private maxReconnectAttempts = 5;
+  private reconnectDelay = 1000;
 
   connect() {
     const token = useAuthStore.getState().token;
@@ -43,56 +15,17 @@ class SocketService {
       return;
     }
 
-    this.connectionStatus = 'connecting';
-    const SOCKET_URL = import.meta.env.VITE_WS_URL || 'ws://localhost:3001';
-    
+    const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || 'http://localhost:3001';
+
     this.socket = io(SOCKET_URL, {
-      auth: { token },
+      auth: {
+        token,
+      },
       transports: ['websocket', 'polling'],
       timeout: 20000,
-      forceNew: true,
-      upgrade: true,
-      rememberUpgrade: true,
-      autoConnect: true,
     });
 
     this.setupEventListeners();
-    this.setupNetworkListeners();
-    this.startHeartbeat();
-  }
-
-  private setupNetworkListeners() {
-    // Handle network status changes
-    window.addEventListener('online', () => {
-      console.log('Network back online, reconnecting socket...');
-      this.isOnline = true;
-      if (!this.socket?.connected) {
-        this.connect();
-      }
-    });
-
-    window.addEventListener('offline', () => {
-      console.log('Network offline, socket will queue messages');
-      this.isOnline = false;
-      this.connectionStatus = 'disconnected';
-    });
-  }
-
-  disconnect() {
-    if (this.socket) {
-      this.socket.disconnect();
-      this.socket = null;
-    }
-    
-    if (this.reconnectTimer) {
-      clearTimeout(this.reconnectTimer);
-      this.reconnectTimer = null;
-    }
-    
-    if (this.heartbeatInterval) {
-      clearInterval(this.heartbeatInterval);
-      this.heartbeatInterval = null;
-    }
   }
 
   private setupEventListeners() {
@@ -100,205 +33,212 @@ class SocketService {
 
     // Connection events
     this.socket.on('connect', () => {
-      console.log('Connected to server');
+      console.log('✅ Socket connected:', this.socket?.id);
       this.reconnectAttempts = 0;
       
-      // Subscribe to presence updates
-      this.socket?.emit('subscribe-presence');
-      
-      // Mark user as online
-      this.socket?.emit('user-online');
+      // Join user's personal room for notifications
+      const user = useAuthStore.getState().user;
+      if (user) {
+        this.socket?.emit('join-user-room', user.id);
+      }
     });
 
     this.socket.on('disconnect', (reason) => {
-      console.log('Disconnected from server:', reason);
+      console.log('❌ Socket disconnected:', reason);
+      
+      if (reason === 'io server disconnect') {
+        // Server initiated disconnect, don't reconnect
+        return;
+      }
+      
+      // Auto-reconnect with exponential backoff
       this.handleReconnect();
     });
 
     this.socket.on('connect_error', (error) => {
-      console.error('Connection error:', error);
+      console.error('Socket connection error:', error);
       this.handleReconnect();
     });
 
     // Message events
-    this.socket.on('new-message', (message: Message) => {
-      console.log('Received new message:', message);
-      useChatStore.getState().addMessage(message);
+    this.socket.on('new-message', (message) => {
+      console.log('📨 New message received:', message);
+      const { addMessage } = useChatStore.getState();
+      
+      // Convert backend message format to frontend format
+      const frontendMessage = {
+        id: message.id,
+        text: message.content.text || '',
+        sender: message.senderId === useAuthStore.getState().user?.id ? 'me' : 'other',
+        timestamp: new Date(message.timestamp),
+        status: 'delivered' as const,
+        type: message.type,
+        mediaUrl: message.content.mediaUrl,
+        fileName: message.content.fileName,
+        replyTo: message.replyTo,
+      };
+      
+      addMessage(message.conversationId, frontendMessage);
     });
 
-    this.socket.on('message-sent', (data: { tempId?: string; message: Message }) => {
-      console.log('Message sent confirmation:', data);
-      if (data.tempId) {
-        useChatStore.getState().replaceTemporaryMessage(data.tempId, data.message);
-      }
-    });
-
-    this.socket.on('message-error', (data: { error: string; tempId?: string }) => {
-      console.error('Message error:', data);
-      if (data.tempId) {
-        useChatStore.getState().markMessageFailed(data.tempId, data.error);
-      }
-    });
-
-    this.socket.on('message-delivered', (data: { messageId: string; userId: string; timestamp: string }) => {
-      console.log('Message delivered:', data);
-      useChatStore.getState().updateMessageStatus(data.messageId, 'delivered', data.userId);
-    });
-
-    this.socket.on('messages-read', (data: { messageIds: string[]; readBy: string; conversationId: string; timestamp: string }) => {
-      console.log('Messages read:', data);
-      data.messageIds.forEach(messageId => {
-        useChatStore.getState().updateMessageStatus(messageId, 'read', data.readBy);
-      });
-    });
-
-    this.socket.on('message-deleted', (data: { messageId: string; conversationId: string; deletedBy: string; timestamp: string }) => {
-      console.log('Message deleted:', data);
-      useChatStore.getState().markMessageDeleted(data.messageId);
-    });
-
-    this.socket.on('message-edited', (data: { messageId: string; content: any; conversationId: string; editedAt: Date; timestamp: string }) => {
-      console.log('Message edited:', data);
-      useChatStore.getState().updateMessageContent(data.messageId, data.content, data.editedAt);
+    this.socket.on('message-status-update', (data) => {
+      console.log('📋 Message status update:', data);
+      // Update message status in store
+      // This would need to be implemented in the chat store
     });
 
     // Typing events
-    this.socket.on('user-typing', (data: { userId: string; conversationId: string; isTyping: boolean; timestamp: string }) => {
-      console.log('User typing status:', data);
-      if (data.isTyping) {
-        useChatStore.getState().addTypingUser(data.conversationId, data.userId);
-      } else {
-        useChatStore.getState().removeTypingUser(data.conversationId, data.userId);
-      }
+    this.socket.on('user-typing', (data) => {
+      console.log('⌨️ User typing:', data);
+      const { setTyping } = useChatStore.getState();
+      setTyping(data.conversationId, true);
+      
+      // Clear typing after 3 seconds
+      setTimeout(() => {
+        setTyping(data.conversationId, false);
+      }, 3000);
     });
 
-    this.socket.on('typing-users', (data: { conversationId: string; typingUsers: string[]; timestamp: string }) => {
-      console.log('Typing users update:', data);
-      useChatStore.getState().setTypingUsers(data.conversationId, data.typingUsers);
+    this.socket.on('user-stopped-typing', (data) => {
+      console.log('⏹️ User stopped typing:', data);
+      const { setTyping } = useChatStore.getState();
+      setTyping(data.conversationId, false);
     });
 
     // Presence events
-    this.socket.on('user-online', (data: { userId: string; timestamp: string }) => {
-      console.log('User online:', data);
-      useChatStore.getState().updateUserPresence(data.userId, true);
+    this.socket.on('user-online', (data) => {
+      console.log('🟢 User online:', data);
+      const { updateContactStatus } = useChatStore.getState();
+      updateContactStatus(data.userId, true);
     });
 
-    this.socket.on('user-offline', (data: { userId: string; lastSeen: string }) => {
-      console.log('User offline:', data);
-      useChatStore.getState().updateUserPresence(data.userId, false, new Date(data.lastSeen));
-    });
-
-    this.socket.on('presence-status', (data: { presence: Record<string, { isOnline: boolean; lastSeen: string }>; timestamp: string }) => {
-      console.log('Presence status update:', data);
-      Object.entries(data.presence).forEach(([userId, status]) => {
-        useChatStore.getState().updateUserPresence(userId, status.isOnline, new Date(status.lastSeen));
-      });
-    });
-
-    // Heartbeat
-    this.socket.on('heartbeat-ack', (data: { timestamp: string }) => {
-      console.log('Heartbeat acknowledged:', data.timestamp);
-    });
-
-    // Error handling
-    this.socket.on('error', (data: { message: string }) => {
-      console.error('Socket error:', data.message);
+    this.socket.on('user-offline', (data) => {
+      console.log('🔴 User offline:', data);
+      const { updateContactStatus } = useChatStore.getState();
+      updateContactStatus(data.userId, false);
     });
 
     // Conversation events
-    this.socket.on('joined-conversation', (data: { conversationId: string }) => {
-      console.log('Joined conversation:', data.conversationId);
+    this.socket.on('conversation-updated', (conversation) => {
+      console.log('💬 Conversation updated:', conversation);
+      // Update conversation in store
     });
 
-    this.socket.on('left-conversation', (data: { conversationId: string }) => {
-      console.log('Left conversation:', data.conversationId);
+    this.socket.on('added-to-conversation', (conversation) => {
+      console.log('➕ Added to conversation:', conversation);
+      // Add new conversation to store
+    });
+
+    this.socket.on('removed-from-conversation', (data) => {
+      console.log('➖ Removed from conversation:', data);
+      // Remove conversation from store
     });
   }
 
   private handleReconnect() {
-    if (this.reconnectTimer) return; // Already attempting to reconnect
-
-    if (this.reconnectAttempts < this.maxReconnectAttempts) {
-      this.reconnectAttempts++;
-      const delay = Math.min(1000 * Math.pow(2, this.reconnectAttempts - 1), 30000); // Exponential backoff, max 30s
-      
-      console.log(`Attempting to reconnect in ${delay}ms... (${this.reconnectAttempts}/${this.maxReconnectAttempts})`);
-      
-      this.reconnectTimer = setTimeout(() => {
-        this.reconnectTimer = null;
-        this.connect();
-      }, delay);
-    } else {
+    if (this.reconnectAttempts >= this.maxReconnectAttempts) {
       console.error('Max reconnection attempts reached');
-    }
-  }
-
-  private startHeartbeat() {
-    if (this.heartbeatInterval) {
-      clearInterval(this.heartbeatInterval);
+      return;
     }
 
-    this.heartbeatInterval = setInterval(() => {
-      if (this.socket?.connected) {
-        this.socket.emit('heartbeat');
-      }
-    }, 30000); // Send heartbeat every 30 seconds
+    this.reconnectAttempts++;
+    const delay = this.reconnectDelay * Math.pow(2, this.reconnectAttempts - 1);
+    
+    console.log(`🔄 Reconnecting in ${delay}ms... (${this.reconnectAttempts}/${this.maxReconnectAttempts})`);
+    
+    setTimeout(() => {
+      this.connect();
+    }, delay);
   }
 
-  joinConversation(conversationId: string) {
-    if (this.socket) {
-      this.socket.emit('join-conversation', conversationId);
+  // Message methods
+  sendMessage(conversationId: string, content: any, type: string = 'text', replyTo?: string) {
+    if (!this.socket?.connected) {
+      console.warn('Socket not connected, cannot send message');
+      return;
     }
+
+    this.socket.emit('send-message', {
+      conversationId,
+      content,
+      type,
+      replyTo,
+    });
   }
 
-  leaveConversation(conversationId: string) {
-    if (this.socket) {
-      this.socket.emit('leave-conversation', conversationId);
-    }
+  editMessage(messageId: string, content: any) {
+    if (!this.socket?.connected) return;
+    
+    this.socket.emit('edit-message', {
+      messageId,
+      content,
+    });
   }
 
-  sendMessage(message: Omit<Message, 'id' | 'timestamp' | 'deliveredTo' | 'readBy'>) {
-    if (this.socket) {
-      this.socket.emit('send-message', message);
-    }
+  deleteMessage(messageId: string) {
+    if (!this.socket?.connected) return;
+    
+    this.socket.emit('delete-message', {
+      messageId,
+    });
   }
 
+  // Typing methods
   startTyping(conversationId: string) {
-    if (this.socket) {
-      this.socket.emit('typing-start', conversationId);
-    }
+    if (!this.socket?.connected) return;
+    
+    this.socket.emit('start-typing', {
+      conversationId,
+    });
   }
 
   stopTyping(conversationId: string) {
-    if (this.socket) {
-      this.socket.emit('typing-stop', conversationId);
-    }
+    if (!this.socket?.connected) return;
+    
+    this.socket.emit('stop-typing', {
+      conversationId,
+    });
   }
 
-  markAsRead(messageIds: string[]) {
-    if (this.socket) {
-      this.socket.emit('mark-read', messageIds);
-    }
+  // Conversation methods
+  joinConversation(conversationId: string) {
+    if (!this.socket?.connected) return;
+    
+    this.socket.emit('join-conversation', {
+      conversationId,
+    });
   }
 
-  // Add methods for sync service compatibility
-  on(event: string, callback: (data: any) => void) {
-    if (this.socket) {
-      this.socket.on(event, callback);
-    }
+  leaveConversation(conversationId: string) {
+    if (!this.socket?.connected) return;
+    
+    this.socket.emit('leave-conversation', {
+      conversationId,
+    });
   }
 
-  emit(event: string, data?: any) {
-    if (this.socket) {
-      this.socket.emit(event, data);
-    }
+  // Read receipts
+  markAsRead(conversationId: string, messageIds: string[]) {
+    if (!this.socket?.connected) return;
+    
+    this.socket.emit('mark-as-read', {
+      conversationId,
+      messageIds,
+    });
   }
 
-  off(event: string, callback?: (data: any) => void) {
+  // Connection status
+  isConnected(): boolean {
+    return this.socket?.connected || false;
+  }
+
+  disconnect() {
     if (this.socket) {
-      this.socket.off(event, callback);
+      this.socket.disconnect();
+      this.socket = null;
     }
   }
 }
 
 export const socketService = new SocketService();
+export default socketService;
