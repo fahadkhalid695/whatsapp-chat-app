@@ -98,6 +98,7 @@ const ChatPage: React.FC = () => {
   const [menuAnchor, setMenuAnchor] = useState<null | HTMLElement>(null);
   const [showVoiceRecorder, setShowVoiceRecorder] = useState(false);
   const [messageSearchOpen, setMessageSearchOpen] = useState(false);
+  const [emojiAnchor, setEmojiAnchor] = useState<null | HTMLElement>(null);
   const [settingsDrawerOpen, setSettingsDrawerOpen] = useState(false);
   const [groupCreationOpen, setGroupCreationOpen] = useState(false);
   const [groupSettingsOpen, setGroupSettingsOpen] = useState(false);
@@ -345,28 +346,63 @@ const ChatPage: React.FC = () => {
         {/* Sidebar Header */}
         <AppBar 
           position="static" 
-          elevation={1}
+          elevation={0}
           sx={{ 
-            bgcolor: '#25D366',
+            background: 'linear-gradient(135deg, #25D366 0%, #128C7E 100%)',
             color: 'white'
           }}
         >
-          <Toolbar>
-            <Avatar
-              src={user?.profilePicture}
-              sx={{ width: 40, height: 40, mr: 2 }}
-            >
-              {user?.displayName?.charAt(0)}
-            </Avatar>
-            <Typography variant="h6" sx={{ flexGrow: 1 }}>
-              Chats
-            </Typography>
-            <IconButton 
-              color="inherit"
-              onClick={(e) => setMenuAnchor(e.currentTarget)}
-            >
-              <MoreVert />
-            </IconButton>
+          <Toolbar sx={{ py: 1 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flexGrow: 1 }}>
+              <Avatar
+                src={user?.profilePicture}
+                sx={{ 
+                  width: 40, 
+                  height: 40,
+                  border: '2px solid rgba(255,255,255,0.3)',
+                  cursor: 'pointer',
+                  transition: 'transform 0.2s',
+                  '&:hover': {
+                    transform: 'scale(1.05)',
+                  },
+                }}
+              >
+                {user?.displayName?.charAt(0)}
+              </Avatar>
+              <Box>
+                <Typography variant="h6" sx={{ fontWeight: 'bold', fontSize: '1.1rem' }}>
+                  Chats
+                </Typography>
+                <Typography variant="caption" sx={{ opacity: 0.8 }}>
+                  {conversations.length} conversations
+                </Typography>
+              </Box>
+            </Box>
+            
+            <Box sx={{ display: 'flex', gap: 0.5 }}>
+              <IconButton 
+                color="inherit"
+                size="small"
+                onClick={() => setGroupCreationOpen(true)}
+                sx={{ 
+                  bgcolor: 'rgba(255,255,255,0.1)',
+                  '&:hover': { bgcolor: 'rgba(255,255,255,0.2)' },
+                }}
+              >
+                <Group />
+              </IconButton>
+              <IconButton 
+                color="inherit"
+                size="small"
+                onClick={(e) => setMenuAnchor(e.currentTarget)}
+                sx={{ 
+                  bgcolor: 'rgba(255,255,255,0.1)',
+                  '&:hover': { bgcolor: 'rgba(255,255,255,0.2)' },
+                }}
+              >
+                <MoreVert />
+              </IconButton>
+            </Box>
             <Menu
               anchorEl={menuAnchor}
               open={Boolean(menuAnchor)}
@@ -396,10 +432,10 @@ const ChatPage: React.FC = () => {
         </AppBar>
 
         {/* Search */}
-        <Box sx={{ p: 2 }}>
+        <Box sx={{ p: 2, pb: 1 }}>
           <TextField
             fullWidth
-            placeholder="Search or start new chat"
+            placeholder="Search conversations..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             InputProps={{
@@ -408,14 +444,51 @@ const ChatPage: React.FC = () => {
                   <Search color="action" />
                 </InputAdornment>
               ),
+              endAdornment: searchQuery && (
+                <InputAdornment position="end">
+                  <IconButton
+                    size="small"
+                    onClick={() => setSearchQuery('')}
+                    sx={{ color: 'text.secondary' }}
+                  >
+                    <Close />
+                  </IconButton>
+                </InputAdornment>
+              ),
             }}
             sx={{
               '& .MuiOutlinedInput-root': {
                 borderRadius: 3,
-                bgcolor: '#f5f5f5',
+                bgcolor: '#f8f9fa',
+                border: '1px solid #e9ecef',
+                transition: 'all 0.2s ease',
+                '&:hover': {
+                  bgcolor: '#ffffff',
+                  borderColor: '#25D366',
+                },
+                '&.Mui-focused': {
+                  bgcolor: '#ffffff',
+                  borderColor: '#25D366',
+                  boxShadow: '0 0 0 3px rgba(37, 211, 102, 0.1)',
+                },
               },
             }}
           />
+          
+          {/* Search results count */}
+          {searchQuery && (
+            <Typography 
+              variant="caption" 
+              sx={{ 
+                display: 'block', 
+                mt: 1, 
+                color: 'text.secondary',
+                textAlign: 'center' 
+              }}
+            >
+              {filteredContacts.length} result{filteredContacts.length !== 1 ? 's' : ''} found
+            </Typography>
+          )}
         </Box>
 
         {/* Contacts List */}
@@ -428,11 +501,18 @@ const ChatPage: React.FC = () => {
               sx={{
                 py: 2,
                 px: 2,
+                borderRadius: 2,
+                mx: 1,
+                mb: 0.5,
+                transition: 'all 0.2s ease',
                 '&.Mui-selected': {
-                  bgcolor: '#e8f5e8',
+                  bgcolor: 'rgba(37, 211, 102, 0.1)',
+                  borderLeft: '4px solid #25D366',
+                  transform: 'translateX(4px)',
                 },
                 '&:hover': {
-                  bgcolor: '#f5f5f5',
+                  bgcolor: 'rgba(37, 211, 102, 0.05)',
+                  transform: 'translateX(2px)',
                 },
               }}
             >
@@ -478,40 +558,67 @@ const ChatPage: React.FC = () => {
                   {conversation.contact.timestamp}
                 </Typography>
                 {conversation.contact.unreadCount > 0 && (
-                  <Chip
-                    label={conversation.contact.unreadCount}
-                    size="small"
-                    sx={{
-                      bgcolor: '#25D366',
-                      color: 'white',
-                      height: 20,
-                      fontSize: '0.75rem',
-                      mt: 0.5,
-                      display: 'block',
-                    }}
-                  />
+                  <Fade in={true}>
+                    <Chip
+                      label={conversation.contact.unreadCount > 99 ? '99+' : conversation.contact.unreadCount}
+                      size="small"
+                      sx={{
+                        bgcolor: '#25D366',
+                        color: 'white',
+                        height: 22,
+                        fontSize: '0.75rem',
+                        fontWeight: 'bold',
+                        mt: 0.5,
+                        display: 'block',
+                        minWidth: 22,
+                        borderRadius: '11px',
+                        animation: conversation.contact.unreadCount > 0 ? 'pulse 2s infinite' : 'none',
+                        '@keyframes pulse': {
+                          '0%': { transform: 'scale(1)' },
+                          '50%': { transform: 'scale(1.1)' },
+                          '100%': { transform: 'scale(1)' },
+                        },
+                      }}
+                    />
+                  </Fade>
                 )}
               </Box>
             </ListItemButton>
           ))}
           
-          {/* Floating Action Button for New Group */}
-          <IconButton
-            sx={{
-              position: 'absolute',
-              bottom: 16,
-              right: 16,
-              bgcolor: '#25D366',
-              color: 'white',
-              '&:hover': {
-                bgcolor: '#128C7E',
-              },
-              boxShadow: 3,
-            }}
-            onClick={() => setGroupCreationOpen(true)}
-          >
-            <Add />
-          </IconButton>
+          {/* Floating Action Button for New Chat */}
+          <Fade in={true} timeout={800}>
+            <IconButton
+              sx={{
+                position: 'absolute',
+                bottom: 20,
+                right: 20,
+                width: 56,
+                height: 56,
+                background: 'linear-gradient(135deg, #25D366 0%, #128C7E 100%)',
+                color: 'white',
+                boxShadow: '0 4px 12px rgba(37, 211, 102, 0.4)',
+                '&:hover': {
+                  background: 'linear-gradient(135deg, #128C7E 0%, #25D366 100%)',
+                  transform: 'scale(1.1)',
+                  boxShadow: '0 6px 16px rgba(37, 211, 102, 0.6)',
+                },
+                transition: 'all 0.3s ease',
+              }}
+              onClick={() => {
+                // Add a new demo conversation
+                const demoContacts = [
+                  { name: 'Sarah Wilson', avatar: 'https://i.pravatar.cc/150?img=7', message: 'Hey! How are you?' },
+                  { name: 'Mike Johnson', avatar: 'https://i.pravatar.cc/150?img=8', message: 'Let\'s catch up soon!' },
+                  { name: 'Lisa Chen', avatar: 'https://i.pravatar.cc/150?img=9', message: 'Thanks for the help!' },
+                ];
+                const randomContact = demoContacts[Math.floor(Math.random() * demoContacts.length)];
+                console.log('Adding new conversation with:', randomContact.name);
+              }}
+            >
+              <Add sx={{ fontSize: 28 }} />
+            </IconButton>
+          </Fade>
         </List>
       </Box>
 
@@ -611,64 +718,292 @@ const ChatPage: React.FC = () => {
                 <div>Virtualized list temporarily disabled</div>
               ) : (
                 <Box sx={{ p: 1, overflow: 'auto', height: '100%' }}>
-                  {activeConversation.messages.map((message, index) => (
-                    <Box
-                      key={message.id}
-                      sx={{
-                        display: 'flex',
-                        justifyContent: message.sender === 'me' ? 'flex-end' : 'flex-start',
-                        mb: 1,
-                        px: 1,
-                      }}
-                    >
-                      <Box
-                        sx={{
-                          maxWidth: '70%',
-                          p: 1.5,
-                          borderRadius: message.sender === 'me' 
-                            ? '18px 18px 4px 18px' 
-                            : '18px 18px 18px 4px',
-                          bgcolor: message.sender === 'me' ? '#d9fdd3' : 'white',
-                          boxShadow: '0 1px 2px rgba(0,0,0,0.1)',
-                        }}
-                      >
-                        {message.type === 'image' && message.mediaUrl ? (
-                          <Box>
-                            <Card sx={{ maxWidth: 300, mb: 1 }}>
-                              <CardMedia
-                                component="img"
-                                image={message.mediaUrl}
-                                alt="Shared image"
-                                sx={{ maxHeight: 200, objectFit: 'cover' }}
-                              />
-                            </Card>
-                            {message.text && (
-                              <Typography variant="body1">{message.text}</Typography>
-                            )}
-                          </Box>
-                        ) : (
-                          <Typography variant="body1" sx={{ wordBreak: 'break-word' }}>
-                            {message.text}
-                          </Typography>
-                        )}
-                        <Typography 
-                          variant="caption" 
-                          sx={{ 
-                            display: 'block',
-                            textAlign: 'right',
-                            opacity: 0.7,
-                            mt: 0.5,
+                  {activeConversation.messages.map((message, index) => {
+                    const prevMessage = activeConversation.messages[index - 1];
+                    const isConsecutive = prevMessage && 
+                      prevMessage.sender === message.sender &&
+                      (message.timestamp.getTime() - prevMessage.timestamp.getTime()) < 60000;
+
+                    return (
+                      <Fade key={message.id} in={true} timeout={300}>
+                        <Box
+                          sx={{
+                            display: 'flex',
+                            justifyContent: message.sender === 'me' ? 'flex-end' : 'flex-start',
+                            mb: isConsecutive ? 0.5 : 1,
+                            px: 1,
+                            '&:hover .message-actions': {
+                              opacity: 1,
+                            },
                           }}
                         >
-                          {message.timestamp.toLocaleTimeString('en-US', {
-                            hour: 'numeric',
-                            minute: '2-digit',
-                            hour12: true,
-                          })}
-                        </Typography>
-                      </Box>
-                    </Box>
-                  ))}
+                          {/* Avatar for other users */}
+                          {message.sender !== 'me' && !isConsecutive && (
+                            <Avatar
+                              src={activeConversation.contact.avatar}
+                              sx={{ 
+                                width: 32, 
+                                height: 32, 
+                                mr: 1,
+                                alignSelf: 'flex-end',
+                              }}
+                            >
+                              {activeConversation.contact.name.charAt(0)}
+                            </Avatar>
+                          )}
+                          
+                          {/* Spacer for consecutive messages */}
+                          {message.sender !== 'me' && isConsecutive && (
+                            <Box sx={{ width: 40 }} />
+                          )}
+
+                          <Box sx={{ position: 'relative', maxWidth: '70%' }}>
+                            {/* Reply indicator */}
+                            {message.replyTo && (
+                              <Box
+                                sx={{
+                                  borderLeft: '3px solid #25D366',
+                                  pl: 1,
+                                  mb: 1,
+                                  bgcolor: 'rgba(37, 211, 102, 0.1)',
+                                  borderRadius: 1,
+                                  p: 0.5,
+                                }}
+                              >
+                                <Typography variant="caption" color="primary" fontWeight="medium">
+                                  Replying to message
+                                </Typography>
+                              </Box>
+                            )}
+
+                            {/* Message bubble */}
+                            <Box
+                              sx={{
+                                p: 1.5,
+                                borderRadius: message.sender === 'me' 
+                                  ? '18px 18px 4px 18px' 
+                                  : '18px 18px 18px 4px',
+                                bgcolor: message.sender === 'me' ? '#d9fdd3' : 'white',
+                                boxShadow: '0 1px 2px rgba(0,0,0,0.1)',
+                                position: 'relative',
+                                transition: 'all 0.2s ease',
+                                '&:hover': {
+                                  boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+                                },
+                              }}
+                            >
+                              {/* Media content */}
+                              {message.type === 'image' && message.mediaUrl ? (
+                                <Box>
+                                  <Card 
+                                    sx={{ 
+                                      maxWidth: 300, 
+                                      mb: message.text ? 1 : 0,
+                                      borderRadius: 2,
+                                      overflow: 'hidden',
+                                      cursor: 'pointer',
+                                      transition: 'transform 0.2s',
+                                      '&:hover': {
+                                        transform: 'scale(1.02)',
+                                      },
+                                    }}
+                                  >
+                                    <CardMedia
+                                      component="img"
+                                      image={message.mediaUrl}
+                                      alt="Shared image"
+                                      sx={{ maxHeight: 200, objectFit: 'cover' }}
+                                    />
+                                  </Card>
+                                  {message.text && (
+                                    <Typography variant="body1" sx={{ wordBreak: 'break-word' }}>
+                                      {message.text}
+                                    </Typography>
+                                  )}
+                                </Box>
+                              ) : message.type === 'audio' && message.mediaUrl ? (
+                                <Box 
+                                  sx={{ 
+                                    display: 'flex', 
+                                    alignItems: 'center', 
+                                    gap: 1, 
+                                    minWidth: 200,
+                                    p: 1,
+                                    bgcolor: message.sender === 'me' ? 'rgba(255,255,255,0.2)' : 'rgba(37, 211, 102, 0.1)',
+                                    borderRadius: 2,
+                                  }}
+                                >
+                                  <IconButton 
+                                    size="small" 
+                                    sx={{ 
+                                      bgcolor: '#25D366',
+                                      color: 'white',
+                                      '&:hover': { bgcolor: '#128C7E' },
+                                    }}
+                                  >
+                                    <PlayArrow />
+                                  </IconButton>
+                                  
+                                  <Box sx={{ flexGrow: 1 }}>
+                                    <Typography variant="body2" fontWeight="medium">
+                                      Voice message
+                                    </Typography>
+                                    <Box
+                                      sx={{
+                                        height: 3,
+                                        bgcolor: 'rgba(0,0,0,0.2)',
+                                        borderRadius: 1.5,
+                                        mt: 0.5,
+                                        position: 'relative',
+                                        overflow: 'hidden',
+                                      }}
+                                    >
+                                      <Box
+                                        sx={{
+                                          height: '100%',
+                                          width: '30%',
+                                          bgcolor: '#25D366',
+                                          borderRadius: 1.5,
+                                          transition: 'width 0.3s ease',
+                                        }}
+                                      />
+                                    </Box>
+                                  </Box>
+                                  
+                                  <Typography variant="caption" sx={{ opacity: 0.7 }}>
+                                    0:15
+                                  </Typography>
+                                </Box>
+                              ) : (
+                                <Typography variant="body1" sx={{ 
+                                  wordBreak: 'break-word',
+                                  whiteSpace: 'pre-wrap',
+                                }}>
+                                  {message.text}
+                                </Typography>
+                              )}
+
+                              {/* Message reactions */}
+                              {message.reactions && message.reactions.length > 0 && (
+                                <Box
+                                  sx={{
+                                    display: 'flex',
+                                    gap: 0.5,
+                                    mt: 1,
+                                    flexWrap: 'wrap',
+                                  }}
+                                >
+                                  {message.reactions.map((reaction, idx) => (
+                                    <Chip
+                                      key={idx}
+                                      label={`${reaction.emoji} ${reaction.users.length}`}
+                                      size="small"
+                                      sx={{
+                                        height: 24,
+                                        fontSize: '0.75rem',
+                                        bgcolor: 'rgba(37, 211, 102, 0.1)',
+                                        border: '1px solid rgba(37, 211, 102, 0.3)',
+                                        cursor: 'pointer',
+                                        '&:hover': {
+                                          bgcolor: 'rgba(37, 211, 102, 0.2)',
+                                        },
+                                      }}
+                                    />
+                                  ))}
+                                </Box>
+                              )}
+
+                              {/* Timestamp and status */}
+                              <Box
+                                sx={{
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'flex-end',
+                                  gap: 0.5,
+                                  mt: 0.5,
+                                }}
+                              >
+                                {message.editedAt && (
+                                  <Typography variant="caption" sx={{ opacity: 0.7, fontSize: '0.7rem' }}>
+                                    edited
+                                  </Typography>
+                                )}
+                                
+                                <Typography 
+                                  variant="caption" 
+                                  sx={{ 
+                                    opacity: 0.7,
+                                    fontSize: '0.7rem',
+                                  }}
+                                >
+                                  {message.timestamp.toLocaleTimeString('en-US', {
+                                    hour: 'numeric',
+                                    minute: '2-digit',
+                                    hour12: true,
+                                  })}
+                                </Typography>
+                                
+                                {message.sender === 'me' && (
+                                  <Box sx={{ fontSize: '0.7rem', opacity: 0.7 }}>
+                                    {message.status === 'sent' && '✓'}
+                                    {message.status === 'delivered' && '✓✓'}
+                                    {message.status === 'read' && <span style={{ color: '#00a884' }}>✓✓</span>}
+                                  </Box>
+                                )}
+                              </Box>
+                            </Box>
+
+                            {/* Quick reaction buttons */}
+                            <Box
+                              className="message-actions"
+                              sx={{
+                                position: 'absolute',
+                                top: -8,
+                                [message.sender === 'me' ? 'left' : 'right']: -40,
+                                display: 'flex',
+                                gap: 0.5,
+                                opacity: 0,
+                                transition: 'opacity 0.2s',
+                                zIndex: 1,
+                              }}
+                            >
+                              <IconButton
+                                size="small"
+                                onClick={() => {
+                                  // Add quick reaction
+                                  console.log('Quick reaction: 👍');
+                                }}
+                                sx={{
+                                  bgcolor: 'background.paper',
+                                  boxShadow: 1,
+                                  width: 28,
+                                  height: 28,
+                                  fontSize: '0.8rem',
+                                  '&:hover': { bgcolor: 'action.hover' },
+                                }}
+                              >
+                                👍
+                              </IconButton>
+                              
+                              <IconButton
+                                size="small"
+                                onClick={() => setReplyingTo(message)}
+                                sx={{
+                                  bgcolor: 'background.paper',
+                                  boxShadow: 1,
+                                  width: 28,
+                                  height: 28,
+                                  '&:hover': { bgcolor: 'action.hover' },
+                                }}
+                              >
+                                ↩️
+                              </IconButton>
+                            </Box>
+                          </Box>
+                        </Box>
+                      </Fade>
+                    );
+                  })}
                   <div ref={messagesEndRef} />
                 </Box>
               )}
@@ -746,12 +1081,32 @@ const ChatPage: React.FC = () => {
               ) : (
                 <Box sx={{ display: 'flex', alignItems: 'flex-end', gap: 1 }}>
                   <IconButton
-                    onClick={() => console.log('Emoji picker coming soon!')}
+                    onClick={(e) => setEmojiAnchor(e.currentTarget)}
                   >
                     <EmojiEmotions />
                   </IconButton>
                   <IconButton
-                    onClick={() => console.log('Media upload coming soon!')}
+                    onClick={() => {
+                      // Simulate media upload
+                      if (activeConversationId) {
+                        const mediaTypes = [
+                          { type: 'image', url: 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=400&h=300&fit=crop', text: 'Beautiful sunset 🌅' },
+                          { type: 'image', url: 'https://images.unsplash.com/photo-1441974231531-c6227db76b6e?w=400&h=300&fit=crop', text: 'Forest path 🌲' },
+                          { type: 'audio', url: 'data:audio/wav;base64,demo', text: 'Voice message' },
+                        ];
+                        const randomMedia = mediaTypes[Math.floor(Math.random() * mediaTypes.length)];
+                        
+                        addMessage(activeConversationId, {
+                          text: randomMedia.text,
+                          sender: 'me',
+                          status: 'sent',
+                          type: randomMedia.type as any,
+                          mediaUrl: randomMedia.url,
+                          replyTo: replyingTo?.id,
+                        });
+                        setReplyingTo(null);
+                      }
+                    }}
                   >
                     <AttachFile />
                   </IconButton>
@@ -814,7 +1169,225 @@ const ChatPage: React.FC = () => {
         )}
       </Box>
 
-      {/* Temporarily disabled components */}
+      {/* Simple Emoji Picker */}
+      <Menu
+        anchorEl={emojiAnchor}
+        open={Boolean(emojiAnchor)}
+        onClose={() => setEmojiAnchor(null)}
+        PaperProps={{
+          sx: {
+            borderRadius: 3,
+            p: 1,
+            maxWidth: 300,
+          },
+        }}
+      >
+        <Box sx={{ p: 1 }}>
+          <Typography variant="subtitle2" gutterBottom sx={{ fontWeight: 'bold' }}>
+            Quick Emojis
+          </Typography>
+          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+            {[
+              '😀', '😂', '🤣', '😊', '😍', '🥰', '😘', '😋',
+              '😎', '🤔', '😴', '😇', '🙃', '😉', '😌', '😏',
+              '❤️', '💕', '💖', '💗', '💙', '💚', '💛', '🧡',
+              '👍', '👎', '👌', '✌️', '🤞', '🤟', '🤘', '👏',
+              '🎉', '🎊', '🔥', '💯', '⭐', '✨', '💫', '🌟',
+            ].map((emoji) => (
+              <IconButton
+                key={emoji}
+                size="small"
+                onClick={() => {
+                  setNewMessage(prev => prev + emoji);
+                  setEmojiAnchor(null);
+                }}
+                sx={{
+                  fontSize: '1.2rem',
+                  width: 32,
+                  height: 32,
+                  '&:hover': {
+                    bgcolor: 'rgba(37, 211, 102, 0.1)',
+                    transform: 'scale(1.2)',
+                  },
+                  transition: 'all 0.2s ease',
+                }}
+              >
+                {emoji}
+              </IconButton>
+            ))}
+          </Box>
+        </Box>
+      </Menu>
+
+      {/* Enhanced Settings Drawer */}
+      <Drawer
+        anchor="right"
+        open={settingsDrawerOpen}
+        onClose={() => setSettingsDrawerOpen(false)}
+        PaperProps={{
+          sx: { 
+            width: 350,
+            background: 'linear-gradient(180deg, #f8f9fa 0%, #ffffff 100%)',
+          },
+        }}
+      >
+        <Box sx={{ p: 3 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
+            <IconButton 
+              onClick={() => setSettingsDrawerOpen(false)}
+              sx={{ mr: 1 }}
+            >
+              <Close />
+            </IconButton>
+            <Typography variant="h6" sx={{ fontWeight: 'bold' }}>
+              Settings
+            </Typography>
+          </Box>
+
+          {/* Profile Section */}
+          <Card sx={{ mb: 3, borderRadius: 3, overflow: 'hidden' }}>
+            <Box
+              sx={{
+                background: 'linear-gradient(135deg, #25D366 0%, #128C7E 100%)',
+                p: 3,
+                color: 'white',
+              }}
+            >
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                <Avatar 
+                  src={user?.profilePicture} 
+                  sx={{ 
+                    width: 60, 
+                    height: 60,
+                    border: '3px solid rgba(255,255,255,0.3)',
+                  }}
+                >
+                  {user?.displayName?.charAt(0)}
+                </Avatar>
+                <Box>
+                  <Typography variant="h6" fontWeight="bold">
+                    {user?.displayName}
+                  </Typography>
+                  <Typography variant="body2" sx={{ opacity: 0.9 }}>
+                    {user?.phoneNumber}
+                  </Typography>
+                  <Chip 
+                    label="Online" 
+                    size="small" 
+                    sx={{ 
+                      mt: 0.5,
+                      bgcolor: 'rgba(255,255,255,0.2)',
+                      color: 'white',
+                      fontSize: '0.7rem',
+                    }} 
+                  />
+                </Box>
+              </Box>
+            </Box>
+          </Card>
+
+          {/* Settings Options */}
+          <Box sx={{ space: 2 }}>
+            <Typography variant="subtitle1" gutterBottom sx={{ fontWeight: 'bold', mb: 2 }}>
+              Preferences
+            </Typography>
+            
+            <Box sx={{ mb: 2 }}>
+              <FormControlLabel
+                control={
+                  <Switch
+                    checked={darkMode}
+                    onChange={(e) => setDarkMode(e.target.checked)}
+                    color="success"
+                  />
+                }
+                label="Dark Mode"
+              />
+            </Box>
+            
+            <Box sx={{ mb: 2 }}>
+              <FormControlLabel
+                control={
+                  <Switch
+                    checked={notificationsEnabled}
+                    onChange={(e) => setNotificationsEnabled(e.target.checked)}
+                    color="success"
+                  />
+                }
+                label="Notifications"
+              />
+            </Box>
+
+            <Divider sx={{ my: 3 }} />
+
+            <Typography variant="subtitle1" gutterBottom sx={{ fontWeight: 'bold', mb: 2 }}>
+              Actions
+            </Typography>
+
+            <Button
+              fullWidth
+              variant="outlined"
+              startIcon={<Group />}
+              onClick={() => {
+                setSettingsDrawerOpen(false);
+                setGroupCreationOpen(true);
+              }}
+              sx={{ 
+                mb: 1,
+                borderRadius: 2,
+                borderColor: '#25D366',
+                color: '#25D366',
+                '&:hover': {
+                  borderColor: '#128C7E',
+                  bgcolor: 'rgba(37, 211, 102, 0.1)',
+                },
+              }}
+            >
+              Create Group
+            </Button>
+
+            <Button
+              fullWidth
+              variant="outlined"
+              startIcon={<Archive />}
+              sx={{ 
+                mb: 1,
+                borderRadius: 2,
+              }}
+            >
+              Archived Chats
+            </Button>
+
+            <Button
+              fullWidth
+              variant="outlined"
+              startIcon={<Security />}
+              sx={{ 
+                mb: 3,
+                borderRadius: 2,
+              }}
+            >
+              Privacy & Security
+            </Button>
+
+            <Button
+              fullWidth
+              variant="contained"
+              color="error"
+              onClick={() => {
+                setSettingsDrawerOpen(false);
+                logout();
+              }}
+              sx={{ 
+                borderRadius: 2,
+                py: 1.5,
+              }}
+            >
+              Logout
+            </Button>
+          </Box>
+        </Box>
+      </Drawer>
 
       {/* Settings Drawer */}
       <Drawer
