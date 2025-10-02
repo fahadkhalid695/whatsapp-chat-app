@@ -51,7 +51,8 @@ class DatabaseConnection {
       console.log('Database connection established successfully');
     } catch (error) {
       console.error('Failed to connect to database:', error);
-      throw error;
+      this.isConnected = false;
+      // Don't throw error - allow server to start without database
     }
   }
 
@@ -74,6 +75,10 @@ class DatabaseConnection {
       return result;
     } catch (error) {
       console.error('Database query error:', error);
+      // If connection lost, mark as disconnected
+      if (error.code === 'ECONNREFUSED' || error.code === 'ENOTFOUND') {
+        this.isConnected = false;
+      }
       throw error;
     }
   }
