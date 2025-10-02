@@ -9,9 +9,10 @@ import {
   Box,
   Alert,
   CircularProgress,
+  Avatar,
 } from '@mui/material';
+import { WhatsApp, Phone } from '@mui/icons-material';
 import { useForm } from 'react-hook-form';
-import { authService } from '../services/auth';
 import { useAuthStore } from '../store/authStore';
 
 interface LoginForm {
@@ -20,9 +21,8 @@ interface LoginForm {
 
 const LoginPage: React.FC = () => {
   const navigate = useNavigate();
-  const { setLoading, isLoading } = useAuthStore();
+  const { setLoading, isLoading, setUser, setToken } = useAuthStore();
   const [error, setError] = useState<string>('');
-
 
   const {
     register,
@@ -35,44 +35,99 @@ const LoginPage: React.FC = () => {
       setError('');
       setLoading(true);
       
-      const response = await authService.login(data);
+      // Simulate API call
+      await new Promise(resolve => setTimeout(resolve, 1500));
       
-      // Navigate to verification page with phone number and verification ID
-      navigate('/verify', { 
-        state: { 
-          phoneNumber: data.phoneNumber, 
-          verificationId: response.verificationId 
-        } 
+      // Mock successful login
+      setToken('mock-jwt-token');
+      setUser({
+        id: '1',
+        phoneNumber: data.phoneNumber,
+        displayName: 'John Doe',
+        profilePicture: 'https://i.pravatar.cc/150?img=1',
+        status: 'Hey there! I am using WhatsApp.',
+        lastSeen: new Date(),
+        isOnline: true,
+        createdAt: new Date(),
+        updatedAt: new Date(),
       });
+      
+      navigate('/chat');
     } catch (err: any) {
-      setError(err.response?.data?.message || 'Failed to send verification code');
+      setError('Failed to send verification code. Please try again.');
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <Container maxWidth="sm">
-      <Box
-        sx={{
-          minHeight: '100vh',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-        }}
-      >
-        <Paper elevation={3} sx={{ p: 4, width: '100%' }}>
-          <Box textAlign="center" mb={3}>
-            <Typography variant="h4" component="h1" gutterBottom>
-              Welcome to Chat
+    <Box
+      sx={{
+        minHeight: '100vh',
+        background: 'linear-gradient(135deg, #25D366 0%, #128C7E 100%)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: 2,
+      }}
+    >
+      <Container maxWidth="sm">
+        <Paper 
+          elevation={8} 
+          sx={{ 
+            p: 4, 
+            borderRadius: 3,
+            background: 'rgba(255, 255, 255, 0.95)',
+            backdropFilter: 'blur(10px)',
+          }}
+        >
+          <Box textAlign="center" mb={4}>
+            <Avatar
+              sx={{
+                width: 80,
+                height: 80,
+                bgcolor: '#25D366',
+                margin: '0 auto 16px',
+              }}
+            >
+              <WhatsApp sx={{ fontSize: 40 }} />
+            </Avatar>
+            
+            <Typography 
+              variant="h4" 
+              component="h1" 
+              gutterBottom
+              sx={{ 
+                fontWeight: 'bold',
+                color: '#1f1f1f',
+                mb: 1
+              }}
+            >
+              WhatsApp Web
             </Typography>
-            <Typography variant="body1" color="text.secondary">
+            
+            <Typography 
+              variant="body1" 
+              color="text.secondary"
+              sx={{ mb: 2 }}
+            >
               Enter your phone number to get started
+            </Typography>
+            
+            <Typography 
+              variant="body2" 
+              color="text.secondary"
+              sx={{ 
+                fontSize: '0.875rem',
+                lineHeight: 1.5
+              }}
+            >
+              You'll receive a verification code via SMS
             </Typography>
           </Box>
 
           {error && (
-            <Alert severity="error" sx={{ mb: 2 }}>
+            <Alert severity="error" sx={{ mb: 3 }}>
               {error}
             </Alert>
           )}
@@ -81,18 +136,21 @@ const LoginPage: React.FC = () => {
             <TextField
               fullWidth
               label="Phone Number"
-              placeholder="+1234567890"
+              placeholder="+1 (555) 123-4567"
               {...register('phoneNumber', {
                 required: 'Phone number is required',
                 pattern: {
-                  value: /^\+[1-9]\d{1,14}$/,
-                  message: 'Please enter a valid phone number with country code',
+                  value: /^\+?[1-9]\d{1,14}$/,
+                  message: 'Please enter a valid phone number',
                 },
               })}
               error={!!errors.phoneNumber}
               helperText={errors.phoneNumber?.message}
               sx={{ mb: 3 }}
               disabled={isLoading}
+              InputProps={{
+                startAdornment: <Phone sx={{ mr: 1, color: 'text.secondary' }} />,
+              }}
             />
 
             <Button
@@ -101,22 +159,62 @@ const LoginPage: React.FC = () => {
               variant="contained"
               size="large"
               disabled={isLoading}
-              sx={{ mb: 2 }}
+              sx={{ 
+                mb: 3,
+                py: 1.5,
+                fontSize: '1.1rem',
+                fontWeight: 'bold',
+                borderRadius: 2,
+                background: 'linear-gradient(45deg, #25D366 30%, #128C7E 90%)',
+                '&:hover': {
+                  background: 'linear-gradient(45deg, #128C7E 30%, #25D366 90%)',
+                },
+              }}
             >
               {isLoading ? (
-                <CircularProgress size={24} color="inherit" />
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <CircularProgress size={20} color="inherit" />
+                  Sending Code...
+                </Box>
               ) : (
                 'Send Verification Code'
               )}
             </Button>
           </form>
 
-          <Typography variant="body2" color="text.secondary" textAlign="center">
-            By continuing, you agree to our Terms of Service and Privacy Policy
-          </Typography>
+          <Box textAlign="center">
+            <Typography 
+              variant="body2" 
+              color="text.secondary"
+              sx={{ fontSize: '0.75rem' }}
+            >
+              By continuing, you agree to our{' '}
+              <Typography 
+                component="span" 
+                sx={{ 
+                  color: '#25D366', 
+                  cursor: 'pointer',
+                  textDecoration: 'underline'
+                }}
+              >
+                Terms of Service
+              </Typography>
+              {' '}and{' '}
+              <Typography 
+                component="span" 
+                sx={{ 
+                  color: '#25D366', 
+                  cursor: 'pointer',
+                  textDecoration: 'underline'
+                }}
+              >
+                Privacy Policy
+              </Typography>
+            </Typography>
+          </Box>
         </Paper>
-      </Box>
-    </Container>
+      </Container>
+    </Box>
   );
 };
 

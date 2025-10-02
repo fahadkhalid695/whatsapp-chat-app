@@ -1,250 +1,285 @@
 import { create } from 'zustand';
-import { ChatState, Conversation, Message, Contact } from '../types';
-import { syncService } from '../services/sync';
 
-interface ChatStore extends ChatState {
-  setConversations: (conversations: Conversation[] | ((prev: Conversation[]) => Conversation[])) => void;
-  addConversation: (conversation: Conversation) => void;
-  updateConversation: (id: string, updates: Partial<Conversation>) => void;
-  setActiveConversation: (id: string | null) => void;
-  setMessages: (conversationId: string, messages: Message[]) => void;
-  addMessage: (message: Message) => void;
-  updateMessage: (messageId: string, updates: Partial<Message>) => void;
-  updateMessageStatus: (messageId: string, status: 'delivered' | 'read', userId: string) => void;
-  replaceTemporaryMessage: (tempId: string, message: Message) => void;
-  markMessageFailed: (tempId: string, error: string) => void;
-  markMessageDeleted: (messageId: string) => void;
-  updateMessageContent: (messageId: string, content: any, editedAt: Date) => void;
-  setContacts: (contacts: Contact[]) => void;
-  setLoading: (loading: boolean) => void;
-  setTypingUsers: (conversationId: string, userIds: string[]) => void;
-  addTypingUser: (conversationId: string, userId: string) => void;
-  removeTypingUser: (conversationId: string, userId: string) => void;
-  updateUserPresence: (userId: string, isOnline: boolean, lastSeen?: Date) => void;
-  syncConversationHistory: () => Promise<void>;
-  markMessagesAsRead: (messageIds: string[]) => Promise<void>;
-  typingUsers: Record<string, string[]>;
-  userPresence: Record<string, { isOnline: boolean; lastSeen?: Date }>;
-  temporaryMessages: Record<string, Message & { tempId: string; status: 'sending' | 'failed'; error?: string }>;
+export interface Message {
+  id: string;
+  text: string;
+  sender: 'me' | 'other';
+  timestamp: Date;
+  status?: 'sent' | 'delivered' | 'read';
+  type?: 'text' | 'image' | 'file' | 'audio';
+  mediaUrl?: string;
+  fileName?: string;
 }
 
-export const useChatStore = create<ChatStore>((set) => ({
+export interface Contact {
+  id: string;
+  name: string;
+  avatar: string;
+  phoneNumber: string;
+  lastMessage: string;
+  timestamp: string;
+  unreadCount: number;
+  isOnline: boolean;
+  status?: string;
+}
+
+export interface Conversation {
+  id: string;
+  contact: Contact;
+  messages: Message[];
+  isTyping: boolean;
+}
+
+interface ChatState {
+  conversations: Conversation[];
+  activeConversationId: string | null;
+  searchQuery: string;
+  isLoading: boolean;
+}
+
+interface ChatActions {
+  setActiveConversation: (id: string | null) => void;
+  addMessage: (conversationId: string, message: Omit<Message, 'id' | 'timestamp'>) => void;
+  markAsRead: (conversationId: string) => void;
+  setTyping: (conversationId: string, isTyping: boolean) => void;
+  setSearchQuery: (query: string) => void;
+  updateContactStatus: (contactId: string, isOnline: boolean) => void;
+  initializeConversations: () => void;
+}
+
+type ChatStore = ChatState & ChatActions;
+
+// Mock data
+const mockContacts: Contact[] = [
+  {
+    id: '1',
+    name: 'Alice Johnson',
+    avatar: 'https://i.pravatar.cc/150?img=2',
+    phoneNumber: '+1234567890',
+    lastMessage: 'Hey! How are you doing?',
+    timestamp: '2:30 PM',
+    unreadCount: 2,
+    isOnline: true,
+    status: 'Available for chat',
+  },
+  {
+    id: '2',
+    name: 'Bob Smith',
+    avatar: 'https://i.pravatar.cc/150?img=3',
+    phoneNumber: '+1234567891',
+    lastMessage: 'Can we meet tomorrow?',
+    timestamp: '1:15 PM',
+    unreadCount: 0,
+    isOnline: false,
+    status: 'Busy',
+  },
+  {
+    id: '3',
+    name: 'Carol Davis',
+    avatar: 'https://i.pravatar.cc/150?img=4',
+    phoneNumber: '+1234567892',
+    lastMessage: 'Thanks for your help!',
+    timestamp: '11:45 AM',
+    unreadCount: 1,
+    isOnline: true,
+    status: 'Hey there! I am using WhatsApp.',
+  },
+  {
+    id: '4',
+    name: 'David Wilson',
+    avatar: 'https://i.pravatar.cc/150?img=5',
+    phoneNumber: '+1234567893',
+    lastMessage: 'See you later 👋',
+    timestamp: 'Yesterday',
+    unreadCount: 0,
+    isOnline: false,
+    status: 'At work',
+  },
+  {
+    id: '5',
+    name: 'Emma Brown',
+    avatar: 'https://i.pravatar.cc/150?img=6',
+    phoneNumber: '+1234567894',
+    lastMessage: 'Great job on the presentation!',
+    timestamp: 'Yesterday',
+    unreadCount: 3,
+    isOnline: true,
+    status: 'Available',
+  },
+];
+
+const mockMessages: Record<string, Message[]> = {
+  '1': [
+    {
+      id: '1',
+      text: 'Hey! How are you doing?',
+      sender: 'other',
+      timestamp: new Date(Date.now() - 3600000),
+      status: 'read',
+    },
+    {
+      id: '2',
+      text: 'I\'m doing great! Thanks for asking 😊',
+      sender: 'me',
+      timestamp: new Date(Date.now() - 3500000),
+      status: 'read',
+    },
+    {
+      id: '3',
+      text: 'What are you up to today?',
+      sender: 'other',
+      timestamp: new Date(Date.now() - 3400000),
+      status: 'read',
+    },
+    {
+      id: '4',
+      text: 'Just working on some projects. How about you?',
+      sender: 'me',
+      timestamp: new Date(Date.now() - 3300000),
+      status: 'delivered',
+    },
+  ],
+  '2': [
+    {
+      id: '5',
+      text: 'Can we meet tomorrow?',
+      sender: 'other',
+      timestamp: new Date(Date.now() - 7200000),
+      status: 'read',
+    },
+    {
+      id: '6',
+      text: 'Sure! What time works for you?',
+      sender: 'me',
+      timestamp: new Date(Date.now() - 7100000),
+      status: 'read',
+    },
+  ],
+  '3': [
+    {
+      id: '7',
+      text: 'Thanks for your help with the project!',
+      sender: 'other',
+      timestamp: new Date(Date.now() - 10800000),
+      status: 'read',
+    },
+    {
+      id: '8',
+      text: 'You\'re welcome! Happy to help anytime 🙂',
+      sender: 'me',
+      timestamp: new Date(Date.now() - 10700000),
+      status: 'read',
+    },
+  ],
+};
+
+export const useChatStore = create<ChatStore>((set, get) => ({
   conversations: [],
   activeConversationId: null,
-  messages: {},
-  contacts: [],
+  searchQuery: '',
   isLoading: false,
-  typingUsers: {},
-  userPresence: {},
-  temporaryMessages: {},
 
-  setConversations: (conversations: Conversation[] | ((prev: Conversation[]) => Conversation[])) => 
-    set((state) => ({
-      conversations: typeof conversations === 'function' ? conversations(state.conversations) : conversations
-    })),
-  
-  addConversation: (conversation: Conversation) => set((state) => ({
-    conversations: [conversation, ...state.conversations]
-  })),
-  
-  updateConversation: (id: string, updates: Partial<Conversation>) => set((state) => ({
-    conversations: state.conversations.map(conv => 
-      conv.id === id ? { ...conv, ...updates } : conv
-    )
-  })),
-  
-  setActiveConversation: (activeConversationId: string | null) => set({ activeConversationId }),
-  
-  setMessages: (conversationId: string, messages: Message[]) => set((state) => ({
-    messages: { ...state.messages, [conversationId]: messages }
-  })),
-  
-  addMessage: (message: Message) => set((state) => {
-    const conversationMessages = state.messages[message.conversationId] || [];
-    return {
-      messages: {
-        ...state.messages,
-        [message.conversationId]: [...conversationMessages, message]
-      }
-    };
-  }),
-  
-  updateMessage: (messageId: string, updates: Partial<Message>) => set((state) => {
-    const newMessages = { ...state.messages };
-    Object.keys(newMessages).forEach(conversationId => {
-      newMessages[conversationId] = newMessages[conversationId].map(msg =>
-        msg.id === messageId ? { ...msg, ...updates } : msg
-      );
-    });
-    return { messages: newMessages };
-  }),
-  
-  setContacts: (contacts: Contact[]) => set({ contacts }),
-  
-  setLoading: (isLoading: boolean) => set({ isLoading }),
-
-  updateMessageStatus: (messageId: string, status: 'delivered' | 'read', userId: string) => set((state) => {
-    const newMessages = { ...state.messages };
-    Object.keys(newMessages).forEach(conversationId => {
-      newMessages[conversationId] = newMessages[conversationId].map(message =>
-        message.id === messageId
-          ? {
-              ...message,
-              [status === 'delivered' ? 'deliveredTo' : 'readBy']: [
-                ...message[status === 'delivered' ? 'deliveredTo' : 'readBy'],
-                userId,
-              ],
-            }
-          : message
-      );
-    });
-    return { messages: newMessages };
-  }),
-
-  replaceTemporaryMessage: (tempId: string, message: Message) => set((state) => {
-    const newMessages = { ...state.messages };
-    const newTemporaryMessages = { ...state.temporaryMessages };
-    
-    // Remove from temporary messages
-    delete newTemporaryMessages[tempId];
-    
-    // Add real message
-    const conversationMessages = newMessages[message.conversationId] || [];
-    const tempMessageIndex = conversationMessages.findIndex(msg => 
-      'tempId' in msg && (msg as any).tempId === tempId
-    );
-    
-    if (tempMessageIndex !== -1) {
-      // Replace temporary message with real message
-      newMessages[message.conversationId] = [
-        ...conversationMessages.slice(0, tempMessageIndex),
-        message,
-        ...conversationMessages.slice(tempMessageIndex + 1),
-      ];
-    } else {
-      // Add message if temp message not found
-      newMessages[message.conversationId] = [...conversationMessages, message];
-    }
-
-    return { 
-      messages: newMessages, 
-      temporaryMessages: newTemporaryMessages 
-    };
-  }),
-
-  markMessageFailed: (tempId: string, error: string) => set((state) => ({
-    temporaryMessages: {
-      ...state.temporaryMessages,
-      [tempId]: {
-        ...state.temporaryMessages[tempId],
-        status: 'failed',
-        error,
-      },
-    },
-  })),
-
-  markMessageDeleted: (messageId: string) => set((state) => {
-    const newMessages = { ...state.messages };
-    
-    Object.keys(newMessages).forEach(conversationId => {
-      newMessages[conversationId] = newMessages[conversationId].map(message =>
-        message.id === messageId
-          ? { ...message, isDeleted: true }
-          : message
-      );
-    });
-
-    return { messages: newMessages };
-  }),
-
-  updateMessageContent: (messageId: string, content: any, editedAt: Date) => set((state) => {
-    const newMessages = { ...state.messages };
-    
-    Object.keys(newMessages).forEach(conversationId => {
-      newMessages[conversationId] = newMessages[conversationId].map(message =>
-        message.id === messageId
-          ? { ...message, content, editedAt }
-          : message
-      );
-    });
-
-    return { messages: newMessages };
-  }),
-
-  setTypingUsers: (conversationId: string, userIds: string[]) => set((state) => ({
-    typingUsers: {
-      ...state.typingUsers,
-      [conversationId]: userIds,
-    },
-  })),
-
-  addTypingUser: (conversationId: string, userId: string) => set((state) => {
-    const currentTypingUsers = state.typingUsers[conversationId] || [];
-    if (!currentTypingUsers.includes(userId)) {
-      return {
-        typingUsers: {
-          ...state.typingUsers,
-          [conversationId]: [...currentTypingUsers, userId],
-        },
-      };
-    }
-    return state;
-  }),
-
-  removeTypingUser: (conversationId: string, userId: string) => set((state) => ({
-    typingUsers: {
-      ...state.typingUsers,
-      [conversationId]: (state.typingUsers[conversationId] || []).filter(id => id !== userId),
-    },
-  })),
-
-  updateUserPresence: (userId: string, isOnline: boolean, lastSeen?: Date) => set((state) => ({
-    userPresence: {
-      ...state.userPresence,
-      [userId]: { isOnline, lastSeen },
-    },
-  })),
-
-  syncConversationHistory: async () => {
-    try {
-      set({ isLoading: true });
-      const syncData = await syncService.syncConversationHistory();
-      
-      // Update conversations with synced data
-      set((state) => ({
-        conversations: syncData.conversations.map(conv => ({
-          id: conv.id,
-          type: conv.type,
-          name: conv.name,
-          participants: conv.participants,
-          admins: conv.admins,
-          lastActivity: new Date(conv.lastActivity),
-          isArchived: conv.isArchived,
-          isMuted: false, // This would come from user preferences
-          createdAt: new Date(conv.createdAt),
-          updatedAt: new Date(conv.updatedAt),
-        })),
-        messages: syncData.conversations.reduce((acc, conv) => {
-          acc[conv.id] = conv.messages.map(msg => ({
-            ...msg,
-            timestamp: new Date(msg.timestamp),
-            editedAt: msg.editedAt ? new Date(msg.editedAt) : undefined,
-          }));
-          return acc;
-        }, {} as Record<string, Message[]>),
-        isLoading: false,
-      }));
-    } catch (error) {
-      console.error('Failed to sync conversation history:', error);
-      set({ isLoading: false });
+  setActiveConversation: (id) => {
+    set({ activeConversationId: id });
+    if (id) {
+      // Mark messages as read when opening conversation
+      get().markAsRead(id);
     }
   },
 
-  markMessagesAsRead: async (messageIds: string[]) => {
-    try {
-      await syncService.syncReadReceipts(messageIds);
-    } catch (error) {
-      console.error('Failed to sync read receipts:', error);
-    }
+  addMessage: (conversationId, messageData) => {
+    const newMessage: Message = {
+      ...messageData,
+      id: Date.now().toString(),
+      timestamp: new Date(),
+    };
+
+    set((state) => ({
+      conversations: state.conversations.map((conv) =>
+        conv.id === conversationId
+          ? {
+              ...conv,
+              messages: [...conv.messages, newMessage],
+            }
+          : conv
+      ),
+    }));
+
+    // Update last message in contact
+    set((state) => ({
+      conversations: state.conversations.map((conv) =>
+        conv.id === conversationId
+          ? {
+              ...conv,
+              contact: {
+                ...conv.contact,
+                lastMessage: newMessage.text,
+                timestamp: new Date().toLocaleTimeString('en-US', {
+                  hour: 'numeric',
+                  minute: '2-digit',
+                  hour12: true,
+                }),
+              },
+            }
+          : conv
+      ),
+    }));
+  },
+
+  markAsRead: (conversationId) => {
+    set((state) => ({
+      conversations: state.conversations.map((conv) =>
+        conv.id === conversationId
+          ? {
+              ...conv,
+              contact: {
+                ...conv.contact,
+                unreadCount: 0,
+              },
+            }
+          : conv
+      ),
+    }));
+  },
+
+  setTyping: (conversationId, isTyping) => {
+    set((state) => ({
+      conversations: state.conversations.map((conv) =>
+        conv.id === conversationId
+          ? { ...conv, isTyping }
+          : conv
+      ),
+    }));
+  },
+
+  setSearchQuery: (query) => {
+    set({ searchQuery: query });
+  },
+
+  updateContactStatus: (contactId, isOnline) => {
+    set((state) => ({
+      conversations: state.conversations.map((conv) =>
+        conv.contact.id === contactId
+          ? {
+              ...conv,
+              contact: {
+                ...conv.contact,
+                isOnline,
+              },
+            }
+          : conv
+      ),
+    }));
+  },
+
+  initializeConversations: () => {
+    const conversations: Conversation[] = mockContacts.map((contact) => ({
+      id: contact.id,
+      contact,
+      messages: mockMessages[contact.id] || [],
+      isTyping: false,
+    }));
+
+    set({ conversations, activeConversationId: conversations[0]?.id || null });
   },
 }));

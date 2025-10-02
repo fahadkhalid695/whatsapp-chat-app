@@ -3,88 +3,74 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
 import { useAuthStore } from './store/authStore';
-
-// Simple placeholder components for now
-const SimplePage = ({ title, children }: { title: string; children: React.ReactNode }) => (
-  <div style={{ padding: '20px', textAlign: 'center' }}>
-    <h1 style={{ color: '#25D366' }}>{title}</h1>
-    {children}
-  </div>
-);
-
-const LoginPage = () => {
-  const { setUser, setToken } = useAuthStore();
-  
-  const handleLogin = () => {
-    // Mock login
-    setToken('mock-token');
-    setUser({
-      id: '1',
-      phoneNumber: '+1234567890',
-      displayName: 'Test User',
-      status: 'Available',
-      lastSeen: new Date(),
-      isOnline: true,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    });
-  };
-  
-  return (
-    <SimplePage title="Login">
-      <p>✅ Login page working!</p>
-      <button 
-        onClick={handleLogin}
-        style={{
-          padding: '12px 24px',
-          backgroundColor: '#25D366',
-          color: 'white',
-          border: 'none',
-          borderRadius: '5px',
-          cursor: 'pointer'
-        }}
-      >
-        Mock Login
-      </button>
-    </SimplePage>
-  );
-};
-
-const ChatPage = () => {
-  const { user, logout } = useAuthStore();
-  
-  return (
-    <SimplePage title="Chat">
-      <p>✅ Welcome, {user?.displayName}!</p>
-      <p>✅ Chat page working!</p>
-      <button 
-        onClick={logout}
-        style={{
-          padding: '8px 16px',
-          backgroundColor: '#dc3545',
-          color: 'white',
-          border: 'none',
-          borderRadius: '5px',
-          cursor: 'pointer'
-        }}
-      >
-        Logout
-      </button>
-    </SimplePage>
-  );
-};
+import LoginPage from './pages/LoginPage';
+import ChatPage from './pages/ChatPage';
 
 const theme = createTheme({
   palette: {
     primary: {
       main: '#25D366', // WhatsApp green
+      light: '#4fc3f7',
+      dark: '#128C7E',
     },
     secondary: {
       main: '#128C7E', // Darker WhatsApp green
+      light: '#25D366',
+      dark: '#0d5d56',
     },
     background: {
-      default: '#f0f0f0',
+      default: '#f0f2f5',
       paper: '#ffffff',
+    },
+    text: {
+      primary: '#111b21',
+      secondary: '#667781',
+    },
+  },
+  typography: {
+    fontFamily: '"Segoe UI", "Helvetica Neue", Helvetica, "Lucida Grande", Arial, Ubuntu, Cantarell, "Fira Sans", sans-serif',
+    h4: {
+      fontWeight: 600,
+    },
+    h6: {
+      fontWeight: 500,
+    },
+    subtitle1: {
+      fontWeight: 500,
+    },
+  },
+  shape: {
+    borderRadius: 8,
+  },
+  components: {
+    MuiButton: {
+      styleOverrides: {
+        root: {
+          textTransform: 'none',
+          fontWeight: 500,
+        },
+      },
+    },
+    MuiTextField: {
+      styleOverrides: {
+        root: {
+          '& .MuiOutlinedInput-root': {
+            '&:hover fieldset': {
+              borderColor: '#25D366',
+            },
+            '&.Mui-focused fieldset': {
+              borderColor: '#25D366',
+            },
+          },
+        },
+      },
+    },
+    MuiAppBar: {
+      styleOverrides: {
+        root: {
+          boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+        },
+      },
     },
   },
 });

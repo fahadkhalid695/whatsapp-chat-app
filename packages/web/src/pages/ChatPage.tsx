@@ -1,705 +1,437 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   Box,
   AppBar,
   Toolbar,
   Typography,
-  IconButton,
   Avatar,
+  IconButton,
+  List,
+  ListItemAvatar,
+  ListItemText,
+  ListItemButton,
+  TextField,
+  InputAdornment,
+  Badge,
   Menu,
   MenuItem,
-  Drawer,
-  useMediaQuery,
-  useTheme,
-  Fab,
+  Chip,
+  Fade,
 } from '@mui/material';
 import {
-  Menu as MenuIcon,
-  MoreVert,
   Search,
-  Group,
-  Person,
-  Add,
-  Info,
-  Close,
+  MoreVert,
+  Send,
+  AttachFile,
+  EmojiEmotions,
+  Mic,
+  VideoCall,
+  Call,
 } from '@mui/icons-material';
 import { useAuthStore } from '../store/authStore';
-import { useChatStore } from '../store/chatStore';
-import { socketService } from '../services/socket';
-import { apiService } from '../services/api';
-import ConversationList from '../components/ConversationList';
-import MessageView from '../components/MessageView';
-import MessageInput from '../components/MessageInput';
-import MessageSearch from '../components/MessageSearch';
-import GroupCreationDialog from '../components/GroupCreationDialog';
-import GroupSettingsDialog from '../components/GroupSettingsDialog';
-import { MessageContent, MessageType, Conversation, Message, Contact } from '../types';
-
-const DRAWER_WIDTH = 320;
-const MOBILE_DRAWER_WIDTH = '100%';
-const TABLET_DRAWER_WIDTH = 280;
+import { useChatStore, Message, Contact } from '../store/chatStore';
 
 const ChatPage: React.FC = () => {
-  const theme = useTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
-  const isTablet = useMediaQuery(theme.breakpoints.between('md', 'lg'));
-  const isSmallScreen = useMediaQuery(theme.breakpoints.down('sm'));
   const { user, logout } = useAuthStore();
   const {
     conversations,
     activeConversationId,
-    messages,
+    searchQuery,
     setActiveConversation,
     addMessage,
-    setConversations,
-    isLoading,
-    typingUsers,
-    userPresence,
+    setSearchQuery,
+    initializeConversations,
   } = useChatStore();
+  
+  const [newMessage, setNewMessage] = useState('');
+  const [menuAnchor, setMenuAnchor] = useState<null | HTMLElement>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  const [drawerOpen, setDrawerOpen] = useState(!isMobile);
-  const [profileMenuAnchor, setProfileMenuAnchor] = useState<null | HTMLElement>(null);
-  const [chatMenuAnchor, setChatMenuAnchor] = useState<null | HTMLElement>(null);
-  const [showGroupCreation, setShowGroupCreation] = useState(false);
-  const [showGroupSettings, setShowGroupSettings] = useState(false);
-  const [showSearch, setShowSearch] = useState(false);
-  const [contacts, setContacts] = useState<Contact[]>([]);
-
-  // Load conversations and contacts
+  // Initialize conversations on mount
   useEffect(() => {
-    const loadData = async () => {
-      try {
-        // Load conversations
-        const conversationsResponse = await apiService.get('/conversations');
-        if (conversationsResponse.success) {
-          setConversations(conversationsResponse.data);
-        }
+    initializeConversations();
+  }, [initializeConversations]);
 
-        // Load contacts
-        const contactsResponse = await apiService.get('/users/contacts');
-        if (contactsResponse.success) {
-          setContacts(contactsResponse.data);
-        }
-      } catch (error) {
-        console.error('Failed to load data:', error);
+  const activeConversation = conversations.find(conv => conv.id === activeConversationId);
+  const filteredContacts = conversations.filter(conv =>
+    conv.contact.name.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [activeConversation?.messages]);
+
+  const handleSendMessage = () => {
+    if (newMessage.trim() && activeConversationId) {
+      addMessage(activeConversationId, {
+        text: newMessage,
+        sender: 'me',
+        status: 'sent',
+      });
+      setNewMessage('');
+      
+      // Simulate response after 2 seconds
+      setTimeout(() => {
+        const responses = [
+          "That's interesting!",
+          "I see what you mean 🤔",
+          "Thanks for sharing!",
+          "Got it! 👍",
+          "Sounds good to me",
+          "Let me think about that...",
+        ];
+        const randomResponse = responses[Math.floor(Math.random() * responses.length)];
         
-        // Fallback to mock data for development
-        const mockConversations: Conversation[] = [
-          {
-            id: '1',
-            type: 'direct',
-            participants: [user?.id || '', 'user2'],
-            lastActivity: new Date(),
-            isArchived: false,
-            isMuted: false,
-            createdAt: new Date(),
-            updatedAt: new Date(),
-            lastMessage: {
-              id: 'msg1',
-              conversationId: '1',
-              senderId: 'user2',
-              content: { text: 'Hey there! How are you doing?' },
-              type: 'text',
-              timestamp: new Date(),
-              deliveredTo: [],
-              readBy: [],
-              isDeleted: false,
-            },
-          },
-          {
-            id: '2',
-            type: 'group',
-            name: 'Team Chat',
-            participants: [user?.id || '', 'user2', 'user3'],
-            admins: [user?.id || ''],
-            lastActivity: new Date(Date.now() - 3600000),
-            isArchived: false,
-            isMuted: false,
-            createdAt: new Date(),
-            updatedAt: new Date(),
-            lastMessage: {
-              id: 'msg2',
-              conversationId: '2',
-              senderId: 'user3',
-              content: { text: 'Great work on the project!' },
-              type: 'text',
-              timestamp: new Date(Date.now() - 3600000),
-              deliveredTo: [],
-              readBy: [],
-              isDeleted: false,
-            },
-          },
-        ];
-
-        const mockContacts: Contact[] = [
-          {
-            id: '1',
-            userId: user?.id || '',
-            contactUserId: 'user2',
-            name: 'John Doe',
-            phoneNumber: '+1234567890',
-            isAppUser: true,
-            isBlocked: false,
-            addedAt: new Date(),
-          },
-          {
-            id: '2',
-            userId: user?.id || '',
-            contactUserId: 'user3',
-            name: 'Jane Smith',
-            phoneNumber: '+1234567891',
-            isAppUser: true,
-            isBlocked: false,
-            addedAt: new Date(),
-          },
-        ];
-
-        setConversations(mockConversations);
-        setContacts(mockContacts);
-      }
-    };
-
-    if (user) {
-      loadData();
-    }
-  }, [setConversations, user]);
-
-  const activeConversation = conversations.find(c => c.id === activeConversationId);
-  const conversationMessages = activeConversationId ? messages[activeConversationId] || [] : [];
-
-  const handleConversationSelect = (conversationId: string) => {
-    // Leave previous conversation
-    if (activeConversationId) {
-      socketService.leaveConversation(activeConversationId);
-    }
-    
-    setActiveConversation(conversationId);
-    socketService.joinConversation(conversationId);
-    
-    if (isMobile) {
-      setDrawerOpen(false);
+        addMessage(activeConversationId, {
+          text: randomResponse,
+          sender: 'other',
+          status: 'read',
+        });
+      }, 2000);
     }
   };
 
-  const handleSendMessage = (content: MessageContent, type: MessageType) => {
-    if (!activeConversationId || !user) return;
+  const handleKeyPress = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSendMessage();
+    }
+  };
 
-    const tempId = `temp_${Date.now()}`;
-    const newMessage: Message = {
-      id: tempId,
-      conversationId: activeConversationId,
-      senderId: user.id,
-      content,
-      type,
-      timestamp: new Date(),
-      deliveredTo: [],
-      readBy: [],
-      isDeleted: false,
-    };
-
-    // Add temporary message to UI
-    addMessage(newMessage);
-    
-    // Send via socket
-    socketService.sendMessage({
-      conversationId: activeConversationId,
-      senderId: user.id,
-      content,
-      type,
-      isDeleted: false,
+  const formatTime = (date: Date) => {
+    return date.toLocaleTimeString('en-US', {
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true,
     });
   };
 
-  const handleSearchMessageSelect = (message: Message) => {
-    // Switch to the conversation containing the message
-    if (message.conversationId !== activeConversationId) {
-      setActiveConversation(message.conversationId);
-    }
-    
-    // Close search
-    setShowSearch(false);
-    
-    // TODO: Scroll to the specific message in the conversation
-    // This would require additional implementation in MessageView component
-  };
-
-  const handleProfileMenuOpen = (event: React.MouseEvent<HTMLElement>) => {
-    setProfileMenuAnchor(event.currentTarget);
-  };
-
-  const handleProfileMenuClose = () => {
-    setProfileMenuAnchor(null);
-  };
-
-  const handleLogout = () => {
-    logout();
-    socketService.disconnect();
-    handleProfileMenuClose();
-  };
-
-  const handleChatMenuOpen = (event: React.MouseEvent<HTMLElement>) => {
-    setChatMenuAnchor(event.currentTarget);
-  };
-
-  const handleChatMenuClose = () => {
-    setChatMenuAnchor(null);
-  };
-
-  const handleCreateGroup = async (name: string, participants: string[]) => {
-    try {
-      const response = await apiService.post('/conversations', {
-        type: 'group',
-        name,
-        participants,
-      });
-
-      if (response.success) {
-        // Add new conversation to the list
-        setConversations((prev: Conversation[]) => [response.data, ...prev]);
-        setActiveConversation(response.data.id);
-        socketService.joinConversation(response.data.id);
-      }
-    } catch (error) {
-      console.error('Failed to create group:', error);
-      throw error;
-    }
-  };
-
-  const handleUpdateGroupName = async (name: string) => {
-    if (!activeConversationId) return;
-
-    try {
-      const response = await apiService.put(`/conversations/${activeConversationId}`, {
-        name,
-      });
-
-      if (response.success) {
-        // Update conversation in the list
-        setConversations((prev: Conversation[]) =>
-          prev.map((conv: Conversation) =>
-            conv.id === activeConversationId
-              ? { ...conv, name, updatedAt: new Date() }
-              : conv
-          )
-        );
-      }
-    } catch (error) {
-      console.error('Failed to update group name:', error);
-      throw error;
-    }
-  };
-
-  const handleAddParticipants = async (participantIds: string[]) => {
-    if (!activeConversationId) return;
-
-    try {
-      await apiService.post(`/conversations/${activeConversationId}/participants`, {
-        participantIds,
-      });
-
-      // Update conversation participants
-      setConversations((prev: Conversation[]) =>
-        prev.map((conv: Conversation) =>
-          conv.id === activeConversationId
-            ? { ...conv, participants: [...conv.participants, ...participantIds] }
-            : conv
-        )
-      );
-    } catch (error) {
-      console.error('Failed to add participants:', error);
-      throw error;
-    }
-  };
-
-  const handleRemoveParticipant = async (participantId: string) => {
-    if (!activeConversationId) return;
-
-    try {
-      await apiService.delete(`/conversations/${activeConversationId}/participants`, {
-        data: { participantIds: [participantId] }
-      });
-
-      // Update conversation participants
-      setConversations((prev: Conversation[]) =>
-        prev.map((conv: Conversation) =>
-          conv.id === activeConversationId
-            ? { 
-                ...conv, 
-                participants: conv.participants.filter((id: string) => id !== participantId),
-                admins: conv.admins?.filter((id: string) => id !== participantId)
-              }
-            : conv
-        )
-      );
-    } catch (error) {
-      console.error('Failed to remove participant:', error);
-      throw error;
-    }
-  };
-
-  const handlePromoteToAdmin = async (participantId: string) => {
-    if (!activeConversationId) return;
-
-    try {
-      await apiService.put(`/conversations/${activeConversationId}/admin`, {
-        targetUserId: participantId,
-        makeAdmin: true,
-      });
-
-      // Update conversation admins
-      setConversations((prev: Conversation[]) =>
-        prev.map((conv: Conversation) =>
-          conv.id === activeConversationId
-            ? { 
-                ...conv, 
-                admins: [...(conv.admins || []), participantId]
-              }
-            : conv
-        )
-      );
-    } catch (error) {
-      console.error('Failed to promote to admin:', error);
-      throw error;
-    }
-  };
-
-  const handleDemoteFromAdmin = async (participantId: string) => {
-    if (!activeConversationId) return;
-
-    try {
-      await apiService.put(`/conversations/${activeConversationId}/admin`, {
-        targetUserId: participantId,
-        makeAdmin: false,
-      });
-
-      // Update conversation admins
-      setConversations((prev: Conversation[]) =>
-        prev.map((conv: Conversation) =>
-          conv.id === activeConversationId
-            ? { 
-                ...conv, 
-                admins: conv.admins?.filter((id: string) => id !== participantId) || []
-              }
-            : conv
-        )
-      );
-    } catch (error) {
-      console.error('Failed to demote from admin:', error);
-      throw error;
-    }
-  };
-
-  const handleLeaveGroup = async () => {
-    if (!activeConversationId) return;
-
-    try {
-      await apiService.delete(`/conversations/${activeConversationId}/leave`);
-
-      // Remove conversation from list
-      setConversations((prev: Conversation[]) => prev.filter((conv: Conversation) => conv.id !== activeConversationId));
-      setActiveConversation(null);
-      socketService.leaveConversation(activeConversationId);
-    } catch (error) {
-      console.error('Failed to leave group:', error);
-      throw error;
-    }
-  };
-
-  const getConversationTitle = (conversation: Conversation | undefined): string => {
-    if (!conversation) return 'Chat';
-    
-    if (conversation.type === 'group') {
-      return conversation.name || 'Group Chat';
-    }
-    
-    const otherParticipantId = conversation.participants.find(id => id !== user?.id);
-    return `User ${otherParticipantId?.slice(-4)}`;
-  };
-
-  const getConversationAvatar = (conversation: Conversation | undefined) => {
-    if (!conversation) return <Person />;
-    
-    if (conversation.type === 'group') {
-      return <Group />;
-    }
-    return <Person />;
-  };
-
-  const getPresenceText = (conversation: Conversation): string => {
-    if (conversation.type === 'group') {
-      return `${conversation.participants.length} participants`;
-    }
-    
-    const otherParticipantId = conversation.participants.find(id => id !== user?.id);
-    if (!otherParticipantId) return 'Unknown';
-    
-    const presence = userPresence[otherParticipantId];
-    if (!presence) return 'Unknown';
-    
-    if (presence.isOnline) {
-      return 'Online';
-    } else if (presence.lastSeen) {
-      const now = new Date();
-      const lastSeen = new Date(presence.lastSeen);
-      const diffMinutes = Math.floor((now.getTime() - lastSeen.getTime()) / (1000 * 60));
-      
-      if (diffMinutes < 1) return 'Last seen just now';
-      if (diffMinutes < 60) return `Last seen ${diffMinutes}m ago`;
-      
-      const diffHours = Math.floor(diffMinutes / 60);
-      if (diffHours < 24) return `Last seen ${diffHours}h ago`;
-      
-      const diffDays = Math.floor(diffHours / 24);
-      return `Last seen ${diffDays}d ago`;
-    }
-    
-    return 'Last seen recently';
-  };
-
-  const getTypingText = (): string => {
-    if (!activeConversationId) return '';
-    
-    const typing = typingUsers[activeConversationId] || [];
-    if (typing.length === 0) return '';
-    
-    if (typing.length === 1) return 'typing...';
-    if (typing.length === 2) return 'typing...';
-    return `${typing.length} people typing...`;
-  };
-
-  const drawerContent = (
-    <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-      {/* Sidebar header */}
-      <Box
-        sx={{
-          p: 2,
-          backgroundColor: 'primary.main',
-          color: 'primary.contrastText',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-        }}
-      >
-        <Box display="flex" alignItems="center">
-          <Avatar
-            {...(user?.profilePicture && { src: user.profilePicture })}
-            sx={{ width: 40, height: 40, mr: 2 }}
-          >
-            {user?.displayName?.[0]?.toUpperCase()}
-          </Avatar>
-          <Typography variant="h6" noWrap>
-            {user?.displayName}
-          </Typography>
-        </Box>
-        <IconButton
-          color="inherit"
-          onClick={handleProfileMenuOpen}
-        >
-          <MoreVert />
-        </IconButton>
-      </Box>
-
-      {/* Search bar placeholder */}
-      <Box sx={{ p: 1, borderBottom: 1, borderColor: 'divider' }}>
-        <IconButton disabled>
-          <Search />
-        </IconButton>
-      </Box>
-
-      {/* Conversation list */}
-      <Box sx={{ flexGrow: 1, overflow: 'hidden', position: 'relative' }}>
-        <ConversationList
-          conversations={conversations}
-          onSelectConversation={handleConversationSelect}
-          activeConversationId={activeConversationId}
-        />
-        
-        {/* Floating action button for new group */}
-        <Fab
-          color="primary"
-          size="medium"
-          sx={{
-            position: 'absolute',
-            bottom: 16,
-            right: 16,
-          }}
-          onClick={() => setShowGroupCreation(true)}
-        >
-          <Add />
-        </Fab>
-      </Box>
-    </Box>
-  );
-
   return (
-    <Box sx={{ display: 'flex', height: '100vh' }}>
+    <Box sx={{ display: 'flex', height: '100vh', bgcolor: '#f0f0f0' }}>
       {/* Sidebar */}
-      <Drawer
-        variant={isMobile ? 'temporary' : 'permanent'}
-        open={drawerOpen}
-        onClose={() => setDrawerOpen(false)}
-        sx={{
-          width: isMobile ? MOBILE_DRAWER_WIDTH : isTablet ? TABLET_DRAWER_WIDTH : DRAWER_WIDTH,
-          flexShrink: 0,
-          '& .MuiDrawer-paper': {
-            width: isMobile ? MOBILE_DRAWER_WIDTH : isTablet ? TABLET_DRAWER_WIDTH : DRAWER_WIDTH,
-            boxSizing: 'border-box',
-            ...(isMobile && {
-              top: 0,
-              height: '100vh',
-            }),
-          },
-        }}
-      >
-        {drawerContent}
-      </Drawer>
-
-      {/* Main chat area */}
       <Box
-        component="main"
         sx={{
-          flexGrow: 1,
+          width: 350,
+          bgcolor: 'white',
+          borderRight: '1px solid #e0e0e0',
           display: 'flex',
           flexDirection: 'column',
-          height: '100vh',
-          overflow: 'hidden',
         }}
       >
-        {/* Chat header */}
-        <AppBar
-          position="static"
-          color="default"
+        {/* Sidebar Header */}
+        <AppBar 
+          position="static" 
           elevation={1}
-          sx={{ backgroundColor: 'background.paper' }}
+          sx={{ 
+            bgcolor: '#25D366',
+            color: 'white'
+          }}
         >
           <Toolbar>
-            {isMobile && (
-              <IconButton
-                edge="start"
-                onClick={() => setDrawerOpen(true)}
-                sx={{ mr: 2 }}
-              >
-                <MenuIcon />
-              </IconButton>
-            )}
-            
-            {activeConversation && (
-              <>
-                <Avatar sx={{ mr: 2 }}>
-                  {getConversationAvatar(activeConversation)}
-                </Avatar>
-                <Box flexGrow={1}>
-                  <Typography variant="h6" noWrap>
-                    {getConversationTitle(activeConversation)}
-                  </Typography>
-                  <Typography variant="caption" color="text.secondary">
-                    {activeConversation.type === 'group' 
-                      ? `${activeConversation.participants.length} participants`
-                      : getPresenceText(activeConversation)
-                    }
-                  </Typography>
-                </Box>
-                <IconButton onClick={() => setShowSearch(true)}>
-                  <Search />
-                </IconButton>
-                <IconButton onClick={handleChatMenuOpen}>
-                  <MoreVert />
-                </IconButton>
-              </>
-            )}
+            <Avatar
+              src={user?.profilePicture}
+              sx={{ width: 40, height: 40, mr: 2 }}
+            >
+              {user?.displayName?.charAt(0)}
+            </Avatar>
+            <Typography variant="h6" sx={{ flexGrow: 1 }}>
+              Chats
+            </Typography>
+            <IconButton 
+              color="inherit"
+              onClick={(e) => setMenuAnchor(e.currentTarget)}
+            >
+              <MoreVert />
+            </IconButton>
+            <Menu
+              anchorEl={menuAnchor}
+              open={Boolean(menuAnchor)}
+              onClose={() => setMenuAnchor(null)}
+            >
+              <MenuItem onClick={() => { setMenuAnchor(null); /* Profile logic */ }}>
+                Profile
+              </MenuItem>
+              <MenuItem onClick={() => { setMenuAnchor(null); /* Settings logic */ }}>
+                Settings
+              </MenuItem>
+              <MenuItem onClick={() => { setMenuAnchor(null); logout(); }}>
+                Logout
+              </MenuItem>
+            </Menu>
           </Toolbar>
         </AppBar>
 
-        {/* Messages area */}
-        <Box sx={{ flexGrow: 1, overflow: 'hidden' }}>
-          <MessageView
-            conversation={activeConversation ?? null}
-            messages={conversationMessages}
-            isLoading={isLoading}
+        {/* Search */}
+        <Box sx={{ p: 2 }}>
+          <TextField
+            fullWidth
+            placeholder="Search or start new chat"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            InputProps={{
+              startAdornment: (
+                <InputAdornment position="start">
+                  <Search color="action" />
+                </InputAdornment>
+              ),
+            }}
+            sx={{
+              '& .MuiOutlinedInput-root': {
+                borderRadius: 3,
+                bgcolor: '#f5f5f5',
+              },
+            }}
           />
         </Box>
 
-        {/* Message input */}
-        {activeConversation && (
-          <MessageInput
-            onSendMessage={handleSendMessage}
-            disabled={!activeConversation}
-          />
-        )}
+        {/* Contacts List */}
+        <List sx={{ flexGrow: 1, overflow: 'auto', p: 0 }}>
+          {filteredContacts.map((conversation) => (
+            <ListItemButton
+              key={conversation.id}
+              selected={activeConversationId === conversation.id}
+              onClick={() => setActiveConversation(conversation.id)}
+              sx={{
+                py: 2,
+                px: 2,
+                '&.Mui-selected': {
+                  bgcolor: '#e8f5e8',
+                },
+                '&:hover': {
+                  bgcolor: '#f5f5f5',
+                },
+              }}
+            >
+              <ListItemAvatar>
+                <Badge
+                  overlap="circular"
+                  anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+                  variant="dot"
+                  sx={{
+                    '& .MuiBadge-badge': {
+                      bgcolor: conversation.contact.isOnline ? '#4caf50' : 'transparent',
+                      width: 12,
+                      height: 12,
+                      border: '2px solid white',
+                    },
+                  }}
+                >
+                  <Avatar src={conversation.contact.avatar} />
+                </Badge>
+              </ListItemAvatar>
+              <ListItemText
+                primary={
+                  <Typography variant="subtitle1" fontWeight="medium">
+                    {conversation.contact.name}
+                  </Typography>
+                }
+                secondary={
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                    {conversation.isTyping ? (
+                      <Typography variant="body2" color="primary" sx={{ fontStyle: 'italic' }}>
+                        typing...
+                      </Typography>
+                    ) : (
+                      <Typography variant="body2" color="text.secondary" noWrap>
+                        {conversation.contact.lastMessage}
+                      </Typography>
+                    )}
+                  </Box>
+                }
+              />
+              <Box sx={{ textAlign: 'right' }}>
+                <Typography variant="caption" color="text.secondary">
+                  {conversation.contact.timestamp}
+                </Typography>
+                {conversation.contact.unreadCount > 0 && (
+                  <Chip
+                    label={conversation.contact.unreadCount}
+                    size="small"
+                    sx={{
+                      bgcolor: '#25D366',
+                      color: 'white',
+                      height: 20,
+                      fontSize: '0.75rem',
+                      mt: 0.5,
+                      display: 'block',
+                    }}
+                  />
+                )}
+              </Box>
+            </ListItemButton>
+          ))}
+        </List>
       </Box>
 
-      {/* Profile menu */}
-      <Menu
-        anchorEl={profileMenuAnchor}
-        open={Boolean(profileMenuAnchor)}
-        onClose={handleProfileMenuClose}
-      >
-        <MenuItem onClick={handleProfileMenuClose}>Profile</MenuItem>
-        <MenuItem onClick={handleProfileMenuClose}>Settings</MenuItem>
-        <MenuItem onClick={handleLogout}>Logout</MenuItem>
-      </Menu>
+      {/* Chat Area */}
+      <Box sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
+        {activeConversation ? (
+          <>
+            {/* Chat Header */}
+            <AppBar 
+              position="static" 
+              elevation={1}
+              sx={{ bgcolor: '#f5f5f5', color: 'black' }}
+            >
+              <Toolbar>
+                <Avatar
+                  src={activeConversation.contact.avatar}
+                  sx={{ width: 40, height: 40, mr: 2 }}
+                />
+                <Box sx={{ flexGrow: 1 }}>
+                  <Typography variant="subtitle1" fontWeight="medium">
+                    {activeConversation.contact.name}
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    {activeConversation.isTyping 
+                      ? 'typing...' 
+                      : activeConversation.contact.isOnline 
+                        ? 'Online' 
+                        : 'Last seen recently'
+                    }
+                  </Typography>
+                </Box>
+                <IconButton>
+                  <VideoCall />
+                </IconButton>
+                <IconButton>
+                  <Call />
+                </IconButton>
+                <IconButton>
+                  <MoreVert />
+                </IconButton>
+              </Toolbar>
+            </AppBar>
 
-      {/* Chat menu */}
-      <Menu
-        anchorEl={chatMenuAnchor}
-        open={Boolean(chatMenuAnchor)}
-        onClose={handleChatMenuClose}
-      >
-        {activeConversation?.type === 'group' && (
-          <MenuItem
-            onClick={() => {
-              setShowGroupSettings(true);
-              handleChatMenuClose();
+            {/* Messages */}
+            <Box
+              sx={{
+                flexGrow: 1,
+                overflow: 'auto',
+                p: 2,
+                background: 'linear-gradient(to bottom, #e5ddd5 0%, #e5ddd5 100%)',
+                backgroundImage: `
+                  radial-gradient(circle at 25% 25%, rgba(255,255,255,0.2) 2px, transparent 2px),
+                  radial-gradient(circle at 75% 75%, rgba(255,255,255,0.2) 2px, transparent 2px)
+                `,
+                backgroundSize: '20px 20px',
+              }}
+            >
+              {activeConversation.messages.map((message) => (
+                <Fade in={true} key={message.id}>
+                  <Box
+                    sx={{
+                      display: 'flex',
+                      justifyContent: message.sender === 'me' ? 'flex-end' : 'flex-start',
+                      mb: 1,
+                    }}
+                  >
+                    <Box
+                      sx={{
+                        maxWidth: '70%',
+                        p: 1.5,
+                        borderRadius: message.sender === 'me' ? '18px 18px 4px 18px' : '18px 18px 18px 4px',
+                        bgcolor: message.sender === 'me' ? '#dcf8c6' : 'white',
+                        boxShadow: '0 1px 2px rgba(0,0,0,0.1)',
+                        position: 'relative',
+                      }}
+                    >
+                      <Typography variant="body1" sx={{ mb: 0.5, wordBreak: 'break-word' }}>
+                        {message.text}
+                      </Typography>
+                      <Typography
+                        variant="caption"
+                        color="text.secondary"
+                        sx={{ display: 'block', textAlign: 'right', fontSize: '0.7rem' }}
+                      >
+                        {formatTime(message.timestamp)}
+                        {message.sender === 'me' && (
+                          <span style={{ marginLeft: 4 }}>
+                            {message.status === 'sent' && '✓'}
+                            {message.status === 'delivered' && '✓✓'}
+                            {message.status === 'read' && (
+                              <span style={{ color: '#25D366' }}>✓✓</span>
+                            )}
+                          </span>
+                        )}
+                      </Typography>
+                    </Box>
+                  </Box>
+                </Fade>
+              ))}
+              <div ref={messagesEndRef} />
+            </Box>
+
+            {/* Message Input */}
+            <Box
+              sx={{
+                p: 2,
+                bgcolor: '#f5f5f5',
+                borderTop: '1px solid #e0e0e0',
+              }}
+            >
+              <Box sx={{ display: 'flex', alignItems: 'flex-end', gap: 1 }}>
+                <IconButton>
+                  <EmojiEmotions />
+                </IconButton>
+                <IconButton>
+                  <AttachFile />
+                </IconButton>
+                <TextField
+                  fullWidth
+                  multiline
+                  maxRows={4}
+                  placeholder="Type a message"
+                  value={newMessage}
+                  onChange={(e) => setNewMessage(e.target.value)}
+                  onKeyPress={handleKeyPress}
+                  sx={{
+                    '& .MuiOutlinedInput-root': {
+                      borderRadius: 3,
+                      bgcolor: 'white',
+                    },
+                  }}
+                />
+                <IconButton
+                  color="primary"
+                  onClick={handleSendMessage}
+                  disabled={!newMessage.trim()}
+                  sx={{
+                    bgcolor: '#25D366',
+                    color: 'white',
+                    '&:hover': {
+                      bgcolor: '#128C7E',
+                    },
+                    '&:disabled': {
+                      bgcolor: '#e0e0e0',
+                    },
+                  }}
+                >
+                  {newMessage.trim() ? <Send /> : <Mic />}
+                </IconButton>
+              </Box>
+            </Box>
+          </>
+        ) : (
+          <Box
+            sx={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              height: '100%',
+              bgcolor: '#f5f5f5',
             }}
           >
-            <Info sx={{ mr: 1 }} />
-            Group Info
-          </MenuItem>
+            <Typography variant="h6" color="text.secondary">
+              Select a chat to start messaging
+            </Typography>
+          </Box>
         )}
-        <MenuItem onClick={handleChatMenuClose}>Search Messages</MenuItem>
-        <MenuItem onClick={handleChatMenuClose}>Clear Chat</MenuItem>
-      </Menu>
-
-      {/* Search drawer */}
-      <Drawer
-        anchor="right"
-        open={showSearch}
-        onClose={() => setShowSearch(false)}
-        sx={{
-          '& .MuiDrawer-paper': {
-            width: isMobile ? '100%' : 400,
-            maxWidth: '100%',
-          },
-        }}
-      >
-        <MessageSearch
-          conversationId={activeConversationId || undefined}
-          onMessageSelect={handleSearchMessageSelect}
-          onClose={() => setShowSearch(false)}
-        />
-      </Drawer>
-
-      {/* Group creation dialog */}
-      <GroupCreationDialog
-        open={showGroupCreation}
-        onClose={() => setShowGroupCreation(false)}
-        contacts={contacts}
-        onCreateGroup={handleCreateGroup}
-      />
-
-      {/* Group settings dialog */}
-      <GroupSettingsDialog
-        open={showGroupSettings}
-        onClose={() => setShowGroupSettings(false)}
-        conversation={activeConversation}
-        contacts={contacts}
-        onUpdateGroupName={handleUpdateGroupName}
-        onAddParticipants={handleAddParticipants}
-        onRemoveParticipant={handleRemoveParticipant}
-        onPromoteToAdmin={handlePromoteToAdmin}
-        onDemoteFromAdmin={handleDemoteFromAdmin}
-        onLeaveGroup={handleLeaveGroup}
-      />
+      </Box>
     </Box>
   );
 };
