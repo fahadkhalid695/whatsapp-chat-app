@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>React Test</title>
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+</head>
+<body>
+    <div id="root">
+        <p>Loading React test...</p>
+    </div>
+
+    <script type="text/babel">
+        const { useState } = React;
+
+        function App() {
+            const [count, setCount] = useState(0);
+            
+            return (
+                <div style={{ padding: '20px', fontFamily: 'Arial, sans-serif' }}>
+                    <h1 style={{ color: '#25D366' }}>React Test - WhatsApp Chat</h1>
+                    <p>✅ React is loaded and working!</p>
+                    <p>✅ State management works!</p>
+                    <p>Count: {count}</p>
+                    <button 
+                        onClick={() => setCount(count + 1)}
+                        style={{
+                            padding: '10px 20px',
+                            backgroundColor: '#25D366',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: '5px',
+                            cursor: 'pointer',
+                            marginRight: '10px'
+                        }}
+                    >
+                        Increment
+                    </button>
+                    <button 
+                        onClick={() => setCount(0)}
+                        style={{
+                            padding: '10px 20px',
+                            backgroundColor: '#dc3545',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: '5px',
+                            cursor: 'pointer'
+                        }}
+                    >
+                        Reset
+                    </button>
+                    <hr />
+                    <p><strong>If you can see this and the buttons work, React is functioning correctly.</strong></p>
+                    <p>The issue might be with the Vite setup or dependencies.</p>
+                </div>
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
