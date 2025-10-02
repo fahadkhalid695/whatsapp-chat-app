@@ -1,19 +1,49 @@
 import { io, Socket } from 'socket.io-client';
 import { useAuthStore } from '../store/authStore';
 import { useChatStore } from '../store/chatStore';
-import { Message } from '../types';
+
+interface SocketMessage {
+  id: string;
+  conversationId: string;
+  senderId: string;
+  content: any;
+  type: string;
+  timestamp: string;
+  deliveredTo: string[];
+  readBy: string[];
+}
+
+interface TypingEvent {
+  userId: string;
+  conversationId: string;
+  isTyping: boolean;
+}
+
+interface PresenceEvent {
+  userId: string;
+  isOnline: boolean;
+  lastSeen?: string;
+}
 
 class SocketService {
   private socket: Socket | null = null;
   private reconnectAttempts = 0;
-  private maxReconnectAttempts = 5;
+  private maxReconnectAttempts = 10;
   private reconnectTimer: NodeJS.Timeout | null = null;
   private heartbeatInterval: NodeJS.Timeout | null = null;
+  private connectionStatus: 'connecting' | 'connected' | 'disconnected' | 'reconnecting' = 'disconnected';
+  private eventListeners: Map<string, Function[]> = new Map();
+  private messageQueue: any[] = [];
+  private isOnline = navigator.onLine;
 
   connect() {
     const token = useAuthStore.getState().token;
-    if (!token) return;
+    if (!token) {
+      console.warn('No auth token available for socket connection');
+      return;
+    }
 
+    this.connectionStatus = 'connecting';
     const SOCKET_URL = import.meta.env.VITE_WS_URL || 'ws://localhost:3001';
     
     this.socket = io(SOCKET_URL, {
@@ -21,10 +51,31 @@ class SocketService {
       transports: ['websocket', 'polling'],
       timeout: 20000,
       forceNew: true,
+      upgrade: true,
+      rememberUpgrade: true,
+      autoConnect: true,
     });
 
     this.setupEventListeners();
+    this.setupNetworkListeners();
     this.startHeartbeat();
+  }
+
+  private setupNetworkListeners() {
+    // Handle network status changes
+    window.addEventListener('online', () => {
+      console.log('Network back online, reconnecting socket...');
+      this.isOnline = true;
+      if (!this.socket?.connected) {
+        this.connect();
+      }
+    });
+
+    window.addEventListener('offline', () => {
+      console.log('Network offline, socket will queue messages');
+      this.isOnline = false;
+      this.connectionStatus = 'disconnected';
+    });
   }
 
   disconnect() {
