@@ -2,83 +2,103 @@ import React, { useState, useEffect } from 'react';
 import {
   Dialog,
   DialogContent,
-  Box,
   IconButton,
+  Box,
   Typography,
-  Toolbar,
+  Avatar,
+  Chip,
   Fade,
+  Zoom,
+  Paper,
+  Tooltip,
 } from '@mui/material';
 import {
   Close,
-  ArrowBackIos,
-  ArrowForwardIos,
+  ArrowBack,
+  ArrowForward,
   Download,
   Share,
   Delete,
+  ZoomIn,
+  ZoomOut,
+  PlayArrow,
+  Pause,
+  VolumeUp,
 } from '@mui/icons-material';
-import { Message } from '../types';
 
 interface MediaItem {
   id: string;
-  uri: string;
-  type: 'image' | 'video';
-  message: Message;
+  type: 'image' | 'video' | 'audio';
+  url: string;
+  caption?: string;
+  timestamp: Date;
+  sender?: string;
+  senderAvatar?: string;
 }
 
 interface MediaGalleryProps {
   open: boolean;
+  onClose: () => void;
   mediaItems: MediaItem[];
   initialIndex?: number;
-  onClose: () => void;
+  onDownload?: (item: MediaItem) => void;
+  onShare?: (item: MediaItem) => void;
+  onDelete?: (item: MediaItem) => void;
 }
 
 const MediaGallery: React.FC<MediaGalleryProps> = ({
   open,
+  onClose,
   mediaItems,
   initialIndex = 0,
-  onClose,
+  onDownload,
+  onShare,
+  onDelete,
 }) => {
   const [currentIndex, setCurrentIndex] = useState(initialIndex);
+  const [zoom, setZoom] = useState(1);
+  const [isPlaying, setIsPlaying] = useState(false);
   const [showControls, setShowControls] = useState(true);
-  const [controlsTimeout, setControlsTimeout] = useState<NodeJS.Timeout | null>(null);
+
+  const currentItem = mediaItems[currentIndex];
 
   useEffect(() => {
-    if (open && initialIndex !== currentIndex) {
-      setCurrentIndex(initialIndex);
-    }
-  }, [open, initialIndex]);
+    setCurrentIndex(initialIndex);
+  }, [initialIndex]);
 
   useEffect(() => {
-    if (showControls) {
-      if (controlsTimeout) {
-        clearTimeout(controlsTimeout);
-      }
-      const timeout = setTimeout(() => {
-        setShowControls(false);
-      }, 3000);
-      setControlsTimeout(timeout);
+    if (!open) {
+      setZoom(1);
+      setIsPlaying(false);
     }
+  }, [open]);
 
-    return () => {
-      if (controlsTimeout) {
-        clearTimeout(controlsTimeout);
-      }
-    };
+  // Auto-hide controls after 3 seconds
+  useEffect(() => {
+    if (!showControls) return;
+    
+    const timer = setTimeout(() => {
+      setShowControls(false);
+    }, 3000);
+
+    return () => clearTimeout(timer);
   }, [showControls]);
 
   const handlePrevious = () => {
     if (currentIndex > 0) {
       setCurrentIndex(currentIndex - 1);
+      setZoom(1);
     }
   };
 
   const handleNext = () => {
     if (currentIndex < mediaItems.length - 1) {
       setCurrentIndex(currentIndex + 1);
+      setZoom(1);
     }
   };
 
-  const handleKeyDown = (event: React.KeyboardEvent) => {
+  const handleKeyPress = (event: KeyboardEvent) => {
     switch (event.key) {
       case 'ArrowLeft':
         handlePrevious();
@@ -89,26 +109,146 @@ const MediaGallery: React.FC<MediaGalleryProps> = ({
       case 'Escape':
         onClose();
         break;
+      case '+':
+      case '=':
+        setZoom(prev => Math.min(prev + 0.25, 3));
+        break;
+      case '-':
+        setZoom(prev => Math.max(prev - 0.25, 0.5));
+        break;
     }
   };
 
-  const toggleControls = () => {
-    setShowControls(!showControls);
-  };
+  useEffect(() => {
+    if (open) {
+      document.addEventListener('keydown', handleKeyPress);
+      return () => document.removeEventListener('keydown', handleKeyPress);
+    }
+  }, [open, currentIndex]);
 
-  const formatDate = (date: Date): string => {
-    return new Intl.DateTimeFormat('en-US', {
-      month: 'short',
-      day: 'numeric',
+  const formatTimestamp = (date: Date) => {
+    return date.toLocaleDateString('en-US', {
       year: 'numeric',
-      hour: '2-digit',
+      month: 'long',
+      day: 'numeric',
+      hour: 'numeric',
       minute: '2-digit',
-    }).format(new Date(date));
+      hour12: true,
+    });
   };
 
-  const currentItem = mediaItems[currentIndex];
+  const renderMediaContent = () => {
+    if (!currentItem) return null;
 
-  if (!currentItem) return null;
+    switch (currentItem.type) {
+      case 'image':
+        return (
+          <Box
+            sx={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              width: '100%',
+              height: '100%',
+              cursor: zoom > 1 ? 'grab' : 'zoom-in',
+            }}
+            onClick={() => setShowControls(!showControls)}
+          >
+            <img
+              src={currentItem.url}
+              alt={currentItem.caption || 'Media'}
+              style={{
+                maxWidth: '100%',
+                maxHeight: '100%',
+                objectFit: 'contain',
+                transform: `scale(${zoom})`,
+                transition: 'transform 0.3s ease',
+              }}
+            />
+          </Box>
+        );
+
+      case 'video':
+        return (
+          <Box
+            sx={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              width: '100%',
+              height: '100%',
+            }}
+          >
+            <video
+              src={currentItem.url}
+              controls
+              autoPlay={isPlaying}
+              style={{
+                maxWidth: '100%',
+                maxHeight: '100%',
+                objectFit: 'contain',
+              }}
+              onPlay={() => setIsPlaying(true)}
+              onPause={() => setIsPlaying(false)}
+            />
+          </Box>
+        );
+
+      case 'audio':
+        return (
+          <Box
+            sx={{
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              width: '100%',
+              height: '100%',
+              gap: 4,
+            }}
+          >
+            <Box
+              sx={{
+                width: 200,
+                height: 200,
+                borderRadius: '50%',
+                background: 'linear-gradient(135deg, #25D366 0%, #128C7E 100%)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                animation: isPlaying ? 'pulse 2s infinite' : 'none',
+                '@keyframes pulse': {
+                  '0%': { transform: 'scale(1)' },
+                  '50%': { transform: 'scale(1.05)' },
+                  '100%': { transform: 'scale(1)' },
+                },
+              }}
+            >
+              <VolumeUp sx={{ fontSize: 80, color: 'white' }} />
+            </Box>
+            
+            <Box sx={{ textAlign: 'center' }}>
+              <Typography variant="h6" gutterBottom>
+                Audio Message
+              </Typography>
+              <audio
+                src={currentItem.url}
+                controls
+                autoPlay={isPlaying}
+                onPlay={() => setIsPlaying(true)}
+                onPause={() => setIsPlaying(false)}
+                style={{ width: '300px' }}
+              />
+            </Box>
+          </Box>
+        );
+
+      default:
+        return null;
+    }
+  };
+
+  if (!open || !currentItem) return null;
 
   return (
     <Dialog
@@ -118,167 +258,264 @@ const MediaGallery: React.FC<MediaGalleryProps> = ({
       fullScreen
       PaperProps={{
         sx: {
-          bgcolor: 'black',
+          bgcolor: 'rgba(0, 0, 0, 0.95)',
           color: 'white',
         },
       }}
-      onKeyDown={handleKeyDown}
     >
       <DialogContent
         sx={{
           p: 0,
+          position: 'relative',
           display: 'flex',
           flexDirection: 'column',
           height: '100vh',
-          position: 'relative',
-          overflow: 'hidden',
         }}
+        onMouseMove={() => setShowControls(true)}
       >
-        {/* Header Controls */}
-        <Fade in={showControls}>
-          <Toolbar
+        {/* Header */}
+        <Fade in={showControls} timeout={300}>
+          <Paper
             sx={{
               position: 'absolute',
               top: 0,
               left: 0,
               right: 0,
               zIndex: 2,
-              bgcolor: 'rgba(0, 0, 0, 0.7)',
+              bgcolor: 'rgba(0, 0, 0, 0.8)',
               color: 'white',
+              p: 2,
+              display: 'flex',
+              alignItems: 'center',
               justifyContent: 'space-between',
             }}
           >
-            <Box sx={{ display: 'flex', alignItems: 'center' }}>
-              <IconButton onClick={onClose} sx={{ color: 'white', mr: 2 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+              <IconButton onClick={onClose} sx={{ color: 'white' }}>
                 <Close />
               </IconButton>
-              <Box>
-                <Typography variant="subtitle1">
-                  {currentItem.message.senderId === 'currentUser' ? 'You' : 'Contact Name'}
-                </Typography>
-                <Typography variant="caption" sx={{ color: 'grey.300' }}>
-                  {formatDate(currentItem.message.timestamp)}
-                </Typography>
+              
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                {currentItem.senderAvatar && (
+                  <Avatar src={currentItem.senderAvatar} sx={{ width: 32, height: 32 }}>
+                    {currentItem.sender?.charAt(0)}
+                  </Avatar>
+                )}
+                <Box>
+                  <Typography variant="body1" fontWeight="medium">
+                    {currentItem.sender || 'Unknown'}
+                  </Typography>
+                  <Typography variant="caption" sx={{ opacity: 0.8 }}>
+                    {formatTimestamp(currentItem.timestamp)}
+                  </Typography>
+                </Box>
               </Box>
             </Box>
-            <Typography variant="body2">
-              {currentIndex + 1} of {mediaItems.length}
-            </Typography>
-          </Toolbar>
+
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <Chip
+                label={`${currentIndex + 1} of ${mediaItems.length}`}
+                size="small"
+                sx={{ bgcolor: 'rgba(255, 255, 255, 0.2)', color: 'white' }}
+              />
+              
+              {currentItem.type === 'image' && (
+                <>
+                  <Tooltip title="Zoom In">
+                    <IconButton
+                      onClick={() => setZoom(prev => Math.min(prev + 0.25, 3))}
+                      sx={{ color: 'white' }}
+                      disabled={zoom >= 3}
+                    >
+                      <ZoomIn />
+                    </IconButton>
+                  </Tooltip>
+                  
+                  <Tooltip title="Zoom Out">
+                    <IconButton
+                      onClick={() => setZoom(prev => Math.max(prev - 0.25, 0.5))}
+                      sx={{ color: 'white' }}
+                      disabled={zoom <= 0.5}
+                    >
+                      <ZoomOut />
+                    </IconButton>
+                  </Tooltip>
+                </>
+              )}
+
+              {onDownload && (
+                <Tooltip title="Download">
+                  <IconButton
+                    onClick={() => onDownload(currentItem)}
+                    sx={{ color: 'white' }}
+                  >
+                    <Download />
+                  </IconButton>
+                </Tooltip>
+              )}
+
+              {onShare && (
+                <Tooltip title="Share">
+                  <IconButton
+                    onClick={() => onShare(currentItem)}
+                    sx={{ color: 'white' }}
+                  >
+                    <Share />
+                  </IconButton>
+                </Tooltip>
+              )}
+
+              {onDelete && (
+                <Tooltip title="Delete">
+                  <IconButton
+                    onClick={() => onDelete(currentItem)}
+                    sx={{ color: 'error.light' }}
+                  >
+                    <Delete />
+                  </IconButton>
+                </Tooltip>
+              )}
+            </Box>
+          </Paper>
         </Fade>
 
         {/* Media Content */}
         <Box
           sx={{
-            flex: 1,
+            flexGrow: 1,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
             position: 'relative',
-            cursor: 'pointer',
           }}
-          onClick={toggleControls}
         >
-          {currentItem.type === 'image' ? (
-            <Box
-              component="img"
-              src={currentItem.uri}
-              alt="Media"
-              sx={{
-                maxWidth: '100%',
-                maxHeight: '100%',
-                objectFit: 'contain',
-              }}
-            />
-          ) : (
-            <Box
-              component="video"
-              src={currentItem.uri}
-              controls={showControls}
-              sx={{
-                maxWidth: '100%',
-                maxHeight: '100%',
-                objectFit: 'contain',
-              }}
-            />
-          )}
+          {renderMediaContent()}
 
           {/* Navigation Arrows */}
-          {showControls && mediaItems.length > 1 && (
+          {mediaItems.length > 1 && (
             <>
-              {currentIndex > 0 && (
-                <Fade in={showControls}>
-                  <IconButton
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handlePrevious();
-                    }}
-                    sx={{
-                      position: 'absolute',
-                      left: 16,
-                      color: 'white',
-                      bgcolor: 'rgba(0, 0, 0, 0.5)',
-                      '&:hover': {
-                        bgcolor: 'rgba(0, 0, 0, 0.7)',
-                      },
-                    }}
-                  >
-                    <ArrowBackIos />
-                  </IconButton>
-                </Fade>
-              )}
-              {currentIndex < mediaItems.length - 1 && (
-                <Fade in={showControls}>
-                  <IconButton
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleNext();
-                    }}
-                    sx={{
-                      position: 'absolute',
-                      right: 16,
-                      color: 'white',
-                      bgcolor: 'rgba(0, 0, 0, 0.5)',
-                      '&:hover': {
-                        bgcolor: 'rgba(0, 0, 0, 0.7)',
-                      },
-                    }}
-                  >
-                    <ArrowForwardIos />
-                  </IconButton>
-                </Fade>
-              )}
+              <Fade in={showControls && currentIndex > 0} timeout={300}>
+                <IconButton
+                  onClick={handlePrevious}
+                  sx={{
+                    position: 'absolute',
+                    left: 20,
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    bgcolor: 'rgba(0, 0, 0, 0.5)',
+                    color: 'white',
+                    '&:hover': { bgcolor: 'rgba(0, 0, 0, 0.7)' },
+                  }}
+                >
+                  <ArrowBack />
+                </IconButton>
+              </Fade>
+
+              <Fade in={showControls && currentIndex < mediaItems.length - 1} timeout={300}>
+                <IconButton
+                  onClick={handleNext}
+                  sx={{
+                    position: 'absolute',
+                    right: 20,
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    bgcolor: 'rgba(0, 0, 0, 0.5)',
+                    color: 'white',
+                    '&:hover': { bgcolor: 'rgba(0, 0, 0, 0.7)' },
+                  }}
+                >
+                  <ArrowForward />
+                </IconButton>
+              </Fade>
             </>
           )}
         </Box>
 
-        {/* Bottom Controls */}
-        <Fade in={showControls}>
-          <Box
-            sx={{
-              position: 'absolute',
-              bottom: 0,
-              left: 0,
-              right: 0,
-              display: 'flex',
-              justifyContent: 'center',
-              alignItems: 'center',
-              p: 2,
-              bgcolor: 'rgba(0, 0, 0, 0.7)',
-              zIndex: 2,
-            }}
-          >
-            <IconButton sx={{ color: 'white', mx: 1 }}>
-              <Share />
-            </IconButton>
-            <IconButton sx={{ color: 'white', mx: 1 }}>
-              <Download />
-            </IconButton>
-            <IconButton sx={{ color: 'white', mx: 1 }}>
-              <Delete />
-            </IconButton>
-          </Box>
-        </Fade>
+        {/* Caption */}
+        {currentItem.caption && (
+          <Fade in={showControls} timeout={300}>
+            <Paper
+              sx={{
+                position: 'absolute',
+                bottom: 0,
+                left: 0,
+                right: 0,
+                bgcolor: 'rgba(0, 0, 0, 0.8)',
+                color: 'white',
+                p: 2,
+              }}
+            >
+              <Typography variant="body1" sx={{ textAlign: 'center' }}>
+                {currentItem.caption}
+              </Typography>
+            </Paper>
+          </Fade>
+        )}
+
+        {/* Thumbnail Strip */}
+        {mediaItems.length > 1 && (
+          <Fade in={showControls} timeout={300}>
+            <Box
+              sx={{
+                position: 'absolute',
+                bottom: currentItem.caption ? 80 : 20,
+                left: '50%',
+                transform: 'translateX(-50%)',
+                display: 'flex',
+                gap: 1,
+                p: 1,
+                bgcolor: 'rgba(0, 0, 0, 0.5)',
+                borderRadius: 2,
+                maxWidth: '80%',
+                overflow: 'auto',
+              }}
+            >
+              {mediaItems.map((item, index) => (
+                <Box
+                  key={item.id}
+                  onClick={() => setCurrentIndex(index)}
+                  sx={{
+                    width: 60,
+                    height: 60,
+                    borderRadius: 1,
+                    overflow: 'hidden',
+                    cursor: 'pointer',
+                    border: index === currentIndex ? '2px solid #25D366' : '2px solid transparent',
+                    transition: 'all 0.2s ease',
+                    '&:hover': {
+                      transform: 'scale(1.1)',
+                    },
+                  }}
+                >
+                  {item.type === 'image' ? (
+                    <img
+                      src={item.url}
+                      alt=""
+                      style={{
+                        width: '100%',
+                        height: '100%',
+                        objectFit: 'cover',
+                      }}
+                    />
+                  ) : (
+                    <Box
+                      sx={{
+                        width: '100%',
+                        height: '100%',
+                        bgcolor: 'rgba(37, 211, 102, 0.8)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                      }}
+                    >
+                      {item.type === 'video' ? <PlayArrow /> : <VolumeUp />}
+                    </Box>
+                  )}
+                </Box>
+              ))}
+            </Box>
+          </Fade>
+        )}
       </DialogContent>
     </Dialog>
   );

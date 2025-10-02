@@ -1,68 +1,68 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   Dialog,
   DialogTitle,
   DialogContent,
   DialogActions,
-  Button,
   TextField,
+  Button,
+  Box,
+  Typography,
+  Avatar,
   List,
   ListItem,
   ListItemAvatar,
   ListItemText,
   ListItemSecondaryAction,
   Checkbox,
-  Avatar,
-  Typography,
-  Box,
   Chip,
   IconButton,
-  CircularProgress,
+  Stepper,
+  Step,
+  StepLabel,
+  Paper,
+  Fade,
+  Grow,
 } from '@mui/material';
-import { Person, Close, Group } from '@mui/icons-material';
-import { Contact } from '../types';
-import { useChatStore } from '../store/chatStore';
+import {
+  Close,
+  Group,
+  Person,
+  PhotoCamera,
+  ArrowBack,
+  ArrowForward,
+  Check,
+} from '@mui/icons-material';
+import { Contact } from '../store/chatStore';
 
 interface GroupCreationDialogProps {
   open: boolean;
   onClose: () => void;
-  contacts: Contact[];
-  onCreateGroup: (name: string, participants: string[]) => Promise<void>;
+  onCreateGroup: (name: string, participants: string[], avatar?: string) => void;
+  availableContacts: Contact[];
 }
 
 const GroupCreationDialog: React.FC<GroupCreationDialogProps> = ({
   open,
   onClose,
-  contacts,
   onCreateGroup,
+  availableContacts,
 }) => {
-  const [step, setStep] = useState<'participants' | 'details'>('participants');
-  const [selectedParticipants, setSelectedParticipants] = useState<string[]>([]);
+  const [activeStep, setActiveStep] = useState(0);
   const [groupName, setGroupName] = useState('');
-  const [isCreating, setIsCreating] = useState(false);
+  const [groupAvatar, setGroupAvatar] = useState<string>('');
+  const [selectedContacts, setSelectedContacts] = useState<string[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
 
-  const { isLoading } = useChatStore();
+  const steps = ['Select Participants', 'Group Details', 'Review'];
 
-  // Reset state when dialog opens/closes
-  useEffect(() => {
-    if (open) {
-      setStep('participants');
-      setSelectedParticipants([]);
-      setGroupName('');
-      setSearchQuery('');
-      setIsCreating(false);
-    }
-  }, [open]);
-
-  const filteredContacts = contacts.filter(contact =>
-    contact.isAppUser &&
-    !contact.isBlocked &&
-    contact.name.toLowerCase().includes(searchQuery.toLowerCase())
+  const filteredContacts = availableContacts.filter(contact =>
+    contact.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    contact.phoneNumber.includes(searchQuery)
   );
 
-  const handleParticipantToggle = (contactId: string) => {
-    setSelectedParticipants(prev =>
+  const handleContactToggle = (contactId: string) => {
+    setSelectedContacts(prev =>
       prev.includes(contactId)
         ? prev.filter(id => id !== contactId)
         : [...prev, contactId]
@@ -70,190 +70,402 @@ const GroupCreationDialog: React.FC<GroupCreationDialogProps> = ({
   };
 
   const handleNext = () => {
-    if (selectedParticipants.length === 0) return;
-    setStep('details');
+    setActiveStep(prev => prev + 1);
   };
 
   const handleBack = () => {
-    setStep('participants');
+    setActiveStep(prev => prev - 1);
   };
 
-  const handleCreateGroup = async () => {
-    if (!groupName.trim() || selectedParticipants.length === 0) return;
-
-    setIsCreating(true);
-    try {
-      await onCreateGroup(groupName.trim(), selectedParticipants);
-      onClose();
-    } catch (error) {
-      console.error('Failed to create group:', error);
-    } finally {
-      setIsCreating(false);
+  const handleCreateGroup = () => {
+    if (groupName.trim() && selectedContacts.length > 0) {
+      onCreateGroup(groupName.trim(), selectedContacts, groupAvatar);
+      handleClose();
     }
   };
 
-  const getContactName = (contactId: string): string => {
-    const contact = contacts.find(c => c.contactUserId === contactId);
-    return contact?.name || `User ${contactId.slice(-4)}`;
+  const handleClose = () => {
+    setActiveStep(0);
+    setGroupName('');
+    setGroupAvatar('');
+    setSelectedContacts([]);
+    setSearchQuery('');
+    onClose();
   };
 
-  const renderParticipantSelection = () => (
-    <>
-      <DialogTitle>
-        <Box display="flex" alignItems="center">
-          <Group sx={{ mr: 1 }} />
-          New Group
-        </Box>
-      </DialogTitle>
-      
-      <DialogContent>
-        <TextField
-          fullWidth
-          placeholder="Search contacts..."
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          sx={{ mb: 2 }}
-        />
+  const getSelectedContactsData = () => {
+    return availableContacts.filter(contact => 
+      selectedContacts.includes(contact.id)
+    );
+  };
 
-        {selectedParticipants.length > 0 && (
-          <Box sx={{ mb: 2 }}>
-            <Typography variant="subtitle2" gutterBottom>
-              Selected ({selectedParticipants.length})
+  const canProceedFromStep = (step: number) => {
+    switch (step) {
+      case 0: return selectedContacts.length > 0;
+      case 1: return groupName.trim().length > 0;
+      case 2: return true;
+      default: return false;
+    }
+  };
+
+  const renderStepContent = () => {
+    switch (activeStep) {
+      case 0:
+        return (
+          <Box>
+            <Typography variant="h6" gutterBottom sx={{ fontWeight: 'bold' }}>
+              Add Participants
             </Typography>
-            <Box display="flex" flexWrap="wrap" gap={1}>
-              {selectedParticipants.map(participantId => (
-                <Chip
-                  key={participantId}
-                  label={getContactName(participantId)}
-                  onDelete={() => handleParticipantToggle(participantId)}
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+              Select contacts to add to your group (minimum 1 required)
+            </Typography>
+
+            {/* Search */}
+            <TextField
+              fullWidth
+              placeholder="Search contacts..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              sx={{ mb: 2 }}
+            />
+
+            {/* Selected contacts chips */}
+            {selectedContacts.length > 0 && (
+              <Box sx={{ mb: 2 }}>
+                <Typography variant="body2" color="text.secondary" gutterBottom>
+                  Selected ({selectedContacts.length}):
+                </Typography>
+                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+                  {getSelectedContactsData().map((contact) => (
+                    <Chip
+                      key={contact.id}
+                      avatar={<Avatar src={contact.avatar}>{contact.name.charAt(0)}</Avatar>}
+                      label={contact.name}
+                      onDelete={() => handleContactToggle(contact.id)}
+                      color="primary"
+                      variant="outlined"
+                    />
+                  ))}
+                </Box>
+              </Box>
+            )}
+
+            {/* Contacts list */}
+            <Paper sx={{ maxHeight: 300, overflow: 'auto', borderRadius: 2 }}>
+              <List>
+                {filteredContacts.map((contact, index) => (
+                  <Fade key={contact.id} in={true} timeout={300 + index * 50}>
+                    <ListItem
+                      button
+                      onClick={() => handleContactToggle(contact.id)}
+                      sx={{
+                        borderRadius: 1,
+                        mx: 1,
+                        mb: 0.5,
+                        '&:hover': {
+                          bgcolor: 'rgba(37, 211, 102, 0.1)',
+                        },
+                      }}
+                    >
+                      <ListItemAvatar>
+                        <Avatar src={contact.avatar}>
+                          {contact.name.charAt(0)}
+                        </Avatar>
+                      </ListItemAvatar>
+                      <ListItemText
+                        primary={contact.name}
+                        secondary={contact.phoneNumber}
+                      />
+                      <ListItemSecondaryAction>
+                        <Checkbox
+                          checked={selectedContacts.includes(contact.id)}
+                          onChange={() => handleContactToggle(contact.id)}
+                          color="primary"
+                        />
+                      </ListItemSecondaryAction>
+                    </ListItem>
+                  </Fade>
+                ))}
+              </List>
+            </Paper>
+          </Box>
+        );
+
+      case 1:
+        return (
+          <Box>
+            <Typography variant="h6" gutterBottom sx={{ fontWeight: 'bold' }}>
+              Group Details
+            </Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+              Customize your group with a name and optional photo
+            </Typography>
+
+            {/* Group Avatar */}
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 3 }}>
+              <Box sx={{ position: 'relative' }}>
+                <Avatar
+                  src={groupAvatar}
+                  sx={{
+                    width: 80,
+                    height: 80,
+                    bgcolor: 'primary.main',
+                    cursor: 'pointer',
+                    transition: 'transform 0.2s',
+                    '&:hover': {
+                      transform: 'scale(1.05)',
+                    },
+                  }}
+                  onClick={() => {
+                    // Simulate avatar selection
+                    const avatars = [
+                      'https://i.pravatar.cc/150?img=10',
+                      'https://i.pravatar.cc/150?img=11',
+                      'https://i.pravatar.cc/150?img=12',
+                    ];
+                    const randomAvatar = avatars[Math.floor(Math.random() * avatars.length)];
+                    setGroupAvatar(randomAvatar);
+                  }}
+                >
+                  <Group sx={{ fontSize: 40 }} />
+                </Avatar>
+                <IconButton
                   size="small"
+                  sx={{
+                    position: 'absolute',
+                    bottom: -5,
+                    right: -5,
+                    bgcolor: 'primary.main',
+                    color: 'white',
+                    '&:hover': { bgcolor: 'primary.dark' },
+                  }}
+                  onClick={() => {
+                    const avatars = [
+                      'https://i.pravatar.cc/150?img=10',
+                      'https://i.pravatar.cc/150?img=11',
+                      'https://i.pravatar.cc/150?img=12',
+                    ];
+                    const randomAvatar = avatars[Math.floor(Math.random() * avatars.length)];
+                    setGroupAvatar(randomAvatar);
+                  }}
+                >
+                  <PhotoCamera fontSize="small" />
+                </IconButton>
+              </Box>
+              <Box>
+                <Typography variant="body2" fontWeight="medium">
+                  Group Photo
+                </Typography>
+                <Typography variant="caption" color="text.secondary">
+                  Click to add or change photo
+                </Typography>
+              </Box>
+            </Box>
+
+            {/* Group Name */}
+            <TextField
+              fullWidth
+              label="Group Name"
+              placeholder="Enter group name..."
+              value={groupName}
+              onChange={(e) => setGroupName(e.target.value)}
+              error={groupName.trim().length === 0}
+              helperText={groupName.trim().length === 0 ? 'Group name is required' : ''}
+              sx={{ mb: 2 }}
+            />
+
+            {/* Participants preview */}
+            <Typography variant="body2" color="text.secondary" gutterBottom>
+              Participants ({selectedContacts.length}):
+            </Typography>
+            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+              {getSelectedContactsData().slice(0, 5).map((contact) => (
+                <Chip
+                  key={contact.id}
+                  avatar={<Avatar src={contact.avatar}>{contact.name.charAt(0)}</Avatar>}
+                  label={contact.name}
+                  size="small"
+                  variant="outlined"
                 />
               ))}
+              {selectedContacts.length > 5 && (
+                <Chip
+                  label={`+${selectedContacts.length - 5} more`}
+                  size="small"
+                  variant="outlined"
+                />
+              )}
             </Box>
           </Box>
-        )}
+        );
 
-        <List sx={{ maxHeight: 300, overflow: 'auto' }}>
-          {filteredContacts.map(contact => (
-            <ListItem
-              key={contact.id}
-              button
-              onClick={() => handleParticipantToggle(contact.contactUserId!)}
-            >
-              <ListItemAvatar>
-                <Avatar>
-                  <Person />
-                </Avatar>
-              </ListItemAvatar>
-              <ListItemText
-                primary={contact.name}
-                secondary={contact.phoneNumber}
-              />
-              <ListItemSecondaryAction>
-                <Checkbox
-                  checked={selectedParticipants.includes(contact.contactUserId!)}
-                  onChange={() => handleParticipantToggle(contact.contactUserId!)}
-                />
-              </ListItemSecondaryAction>
-            </ListItem>
-          ))}
-        </List>
-
-        {filteredContacts.length === 0 && (
-          <Box textAlign="center" py={4}>
-            <Typography color="text.secondary">
-              {searchQuery ? 'No contacts found' : 'No contacts available'}
+      case 2:
+        return (
+          <Box>
+            <Typography variant="h6" gutterBottom sx={{ fontWeight: 'bold' }}>
+              Review Group
             </Typography>
-          </Box>
-        )}
-      </DialogContent>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+              Review your group details before creating
+            </Typography>
 
-      <DialogActions>
-        <Button onClick={onClose}>Cancel</Button>
-        <Button
-          onClick={handleNext}
-          disabled={selectedParticipants.length === 0}
-          variant="contained"
-        >
-          Next ({selectedParticipants.length})
-        </Button>
-      </DialogActions>
-    </>
-  );
-
-  const renderGroupDetails = () => (
-    <>
-      <DialogTitle>
-        <Box display="flex" alignItems="center">
-          <IconButton onClick={handleBack} sx={{ mr: 1 }}>
-            <Close />
-          </IconButton>
-          Group Details
-        </Box>
-      </DialogTitle>
-      
-      <DialogContent>
-        <Box display="flex" flexDirection="column" alignItems="center" mb={3}>
-          <Avatar sx={{ width: 80, height: 80, mb: 2 }}>
-            <Group sx={{ fontSize: 40 }} />
-          </Avatar>
-          <Button variant="outlined" size="small">
-            Add Group Photo
-          </Button>
-        </Box>
-
-        <TextField
-          fullWidth
-          label="Group Name"
-          value={groupName}
-          onChange={(e) => setGroupName(e.target.value)}
-          placeholder="Enter group name"
-          sx={{ mb: 3 }}
-          inputProps={{ maxLength: 100 }}
-        />
-
-        <Typography variant="subtitle2" gutterBottom>
-          Participants ({selectedParticipants.length})
-        </Typography>
-        <List dense>
-          {selectedParticipants.map(participantId => (
-            <ListItem key={participantId}>
-              <ListItemAvatar>
-                <Avatar sx={{ width: 32, height: 32 }}>
-                  <Person />
+            <Paper sx={{ p: 3, borderRadius: 3, mb: 3 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
+                <Avatar
+                  src={groupAvatar}
+                  sx={{ width: 60, height: 60, bgcolor: 'primary.main' }}
+                >
+                  <Group sx={{ fontSize: 30 }} />
                 </Avatar>
-              </ListItemAvatar>
-              <ListItemText primary={getContactName(participantId)} />
-            </ListItem>
-          ))}
-        </List>
-      </DialogContent>
+                <Box>
+                  <Typography variant="h6" fontWeight="bold">
+                    {groupName}
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    {selectedContacts.length} participant{selectedContacts.length !== 1 ? 's' : ''}
+                  </Typography>
+                </Box>
+              </Box>
 
-      <DialogActions>
-        <Button onClick={handleBack}>Back</Button>
-        <Button
-          onClick={handleCreateGroup}
-          disabled={!groupName.trim() || isCreating}
-          variant="contained"
-          startIcon={isCreating ? <CircularProgress size={16} /> : null}
-        >
-          {isCreating ? 'Creating...' : 'Create Group'}
-        </Button>
-      </DialogActions>
-    </>
-  );
+              <Typography variant="subtitle2" gutterBottom sx={{ fontWeight: 'bold' }}>
+                Participants:
+              </Typography>
+              <Box sx={{ maxHeight: 200, overflow: 'auto' }}>
+                {getSelectedContactsData().map((contact, index) => (
+                  <Grow key={contact.id} in={true} timeout={300 + index * 100}>
+                    <Box
+                      sx={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 2,
+                        py: 1,
+                        px: 1,
+                        borderRadius: 1,
+                        '&:hover': { bgcolor: 'action.hover' },
+                      }}
+                    >
+                      <Avatar src={contact.avatar} sx={{ width: 32, height: 32 }}>
+                        {contact.name.charAt(0)}
+                      </Avatar>
+                      <Box>
+                        <Typography variant="body2" fontWeight="medium">
+                          {contact.name}
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary">
+                          {contact.phoneNumber}
+                        </Typography>
+                      </Box>
+                    </Box>
+                  </Grow>
+                ))}
+              </Box>
+            </Paper>
+
+            <Box
+              sx={{
+                p: 2,
+                bgcolor: 'success.light',
+                borderRadius: 2,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 1,
+              }}
+            >
+              <Check color="success" />
+              <Typography variant="body2" color="success.dark">
+                Ready to create your group! All participants will be notified.
+              </Typography>
+            </Box>
+          </Box>
+        );
+
+      default:
+        return null;
+    }
+  };
 
   return (
     <Dialog
       open={open}
-      onClose={onClose}
+      onClose={handleClose}
       maxWidth="sm"
       fullWidth
       PaperProps={{
-        sx: { minHeight: 500 }
+        sx: {
+          borderRadius: 3,
+          minHeight: 500,
+        },
       }}
     >
-      {step === 'participants' ? renderParticipantSelection() : renderGroupDetails()}
+      <DialogTitle>
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <Group color="primary" />
+            <Typography variant="h6" fontWeight="bold">
+              Create Group
+            </Typography>
+          </Box>
+          <IconButton onClick={handleClose} size="small">
+            <Close />
+          </IconButton>
+        </Box>
+
+        {/* Stepper */}
+        <Stepper activeStep={activeStep} sx={{ mt: 2 }}>
+          {steps.map((label) => (
+            <Step key={label}>
+              <StepLabel>{label}</StepLabel>
+            </Step>
+          ))}
+        </Stepper>
+      </DialogTitle>
+
+      <DialogContent sx={{ pt: 2 }}>
+        {renderStepContent()}
+      </DialogContent>
+
+      <DialogActions sx={{ p: 3, pt: 1 }}>
+        <Button
+          onClick={activeStep === 0 ? handleClose : handleBack}
+          startIcon={activeStep === 0 ? <Close /> : <ArrowBack />}
+        >
+          {activeStep === 0 ? 'Cancel' : 'Back'}
+        </Button>
+        
+        <Box sx={{ flexGrow: 1 }} />
+        
+        {activeStep < steps.length - 1 ? (
+          <Button
+            variant="contained"
+            onClick={handleNext}
+            disabled={!canProceedFromStep(activeStep)}
+            endIcon={<ArrowForward />}
+            sx={{
+              background: 'linear-gradient(45deg, #25D366 30%, #128C7E 90%)',
+              '&:hover': {
+                background: 'linear-gradient(45deg, #128C7E 30%, #25D366 90%)',
+              },
+            }}
+          >
+            Next
+          </Button>
+        ) : (
+          <Button
+            variant="contained"
+            onClick={handleCreateGroup}
+            disabled={!canProceedFromStep(activeStep)}
+            startIcon={<Group />}
+            sx={{
+              background: 'linear-gradient(45deg, #25D366 30%, #128C7E 90%)',
+              '&:hover': {
+                background: 'linear-gradient(45deg, #128C7E 30%, #25D366 90%)',
+              },
+            }}
+          >
+            Create Group
+          </Button>
+        )}
+      </DialogActions>
     </Dialog>
   );
 };

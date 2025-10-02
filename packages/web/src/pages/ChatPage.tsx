@@ -55,13 +55,9 @@ import {
 } from '@mui/icons-material';
 import { useAuthStore } from '../store/authStore';
 import { useChatStore, Message, Contact } from '../store/chatStore';
-// Temporarily comment out components that might have import issues
-// import MediaUpload from '../components/MediaUpload';
-// import EmojiPicker from '../components/EmojiPicker';
-// import VoiceRecorder from '../components/VoiceRecorder';
-// import MessageSearch from '../components/MessageSearch';
-// import ConnectionStatus from '../components/ConnectionStatus';
-// import MessageBubble from '../components/MessageBubble';
+import MessageSearch from '../components/MessageSearch';
+import GroupCreationDialog from '../components/GroupCreationDialog';
+import MediaGallery from '../components/MediaGallery';
 // import MessageReactions from '../components/MessageReactions';
 // import VirtualizedMessageList from '../components/VirtualizedMessageList';
 // import GroupCreationDialog from '../components/GroupCreationDialog';
@@ -99,6 +95,8 @@ const ChatPage: React.FC = () => {
   const [showVoiceRecorder, setShowVoiceRecorder] = useState(false);
   const [messageSearchOpen, setMessageSearchOpen] = useState(false);
   const [emojiAnchor, setEmojiAnchor] = useState<null | HTMLElement>(null);
+  const [isTyping, setIsTyping] = useState(false);
+  const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [settingsDrawerOpen, setSettingsDrawerOpen] = useState(false);
   const [groupCreationOpen, setGroupCreationOpen] = useState(false);
   const [groupSettingsOpen, setGroupSettingsOpen] = useState(false);
@@ -167,6 +165,32 @@ const ChatPage: React.FC = () => {
       e.preventDefault();
       handleSendMessage();
     }
+  };
+
+  const handleTyping = (value: string) => {
+    setNewMessage(value);
+    
+    // Show typing indicator
+    if (!isTyping && value.trim()) {
+      setIsTyping(true);
+      if (activeConversationId) {
+        // In a real app, this would send typing status to server
+        console.log('Started typing in conversation:', activeConversationId);
+      }
+    }
+
+    // Clear existing timeout
+    if (typingTimeoutRef.current) {
+      clearTimeout(typingTimeoutRef.current);
+    }
+
+    // Set new timeout to stop typing indicator
+    typingTimeoutRef.current = setTimeout(() => {
+      setIsTyping(false);
+      if (activeConversationId) {
+        console.log('Stopped typing in conversation:', activeConversationId);
+      }
+    }, 1000);
   };
 
   const handleMediaSend = (files: any[], caption: string) => {
@@ -246,6 +270,37 @@ const ChatPage: React.FC = () => {
 
   const handleGroupSettings = () => {
     setGroupSettingsOpen(true);
+  };
+
+  const handleDeleteMessage = (messageId: string) => {
+    if (activeConversationId) {
+      // In a real app, this would delete from the store and sync with server
+      console.log('Deleting message:', messageId);
+      // For demo, we'll just show a confirmation
+      if (window.confirm('Delete this message?')) {
+        // Remove message from conversation
+        // This is a simplified version - in real app you'd use proper state management
+        console.log('Message deleted:', messageId);
+      }
+    }
+  };
+
+  const handleEditMessage = (messageId: string, currentText: string) => {
+    setEditingMessage({ id: messageId, text: currentText });
+  };
+
+  const handleForwardMessage = (message: Message) => {
+    // In a real app, this would open a contact selection dialog
+    console.log('Forwarding message:', message.text);
+    alert(`Forwarding: "${message.text}"\n\nIn a real app, this would open a contact selection dialog.`);
+  };
+
+  const handleSaveEdit = () => {
+    if (editingMessage && activeConversationId) {
+      // In a real app, this would update the message in the store and sync with server
+      console.log('Saving edit:', editingMessage);
+      setEditingMessage(null);
+    }
   };
 
   const renderMessageContent = (message: Message) => {
@@ -813,6 +868,14 @@ const ChatPage: React.FC = () => {
                                       image={message.mediaUrl}
                                       alt="Shared image"
                                       sx={{ maxHeight: 200, objectFit: 'cover' }}
+                                      onClick={() => {
+                                        const mediaMessages = activeConversation.messages.filter(
+                                          msg => msg.type && ['image', 'video', 'audio'].includes(msg.type) && msg.mediaUrl
+                                        );
+                                        const mediaIndex = mediaMessages.findIndex(msg => msg.id === message.id);
+                                        setSelectedMediaIndex(mediaIndex >= 0 ? mediaIndex : 0);
+                                        setMediaGalleryOpen(true);
+                                      }}
                                     />
                                   </Card>
                                   {message.text && (
@@ -998,6 +1061,38 @@ const ChatPage: React.FC = () => {
                               >
                                 ↩️
                               </IconButton>
+                              
+                              <Menu
+                                anchorEl={null}
+                                open={false}
+                                onClose={() => {}}
+                                PaperProps={{
+                                  sx: { borderRadius: 2 },
+                                }}
+                              >
+                                <MenuItem onClick={() => setReplyingTo(message)}>
+                                  ↩️ Reply
+                                </MenuItem>
+                                <MenuItem onClick={() => handleForwardMessage(message)}>
+                                  ➡️ Forward
+                                </MenuItem>
+                                <MenuItem onClick={() => navigator.clipboard.writeText(message.text)}>
+                                  📋 Copy
+                                </MenuItem>
+                                {message.sender === 'me' && (
+                                  <MenuItem onClick={() => handleEditMessage(message.id, message.text)}>
+                                    ✏️ Edit
+                                  </MenuItem>
+                                )}
+                                {message.sender === 'me' && (
+                                  <MenuItem 
+                                    onClick={() => handleDeleteMessage(message.id)}
+                                    sx={{ color: 'error.main' }}
+                                  >
+                                    🗑️ Delete
+                                  </MenuItem>
+                                )}
+                              </Menu>
                             </Box>
                           </Box>
                         </Box>
@@ -1120,7 +1215,7 @@ const ChatPage: React.FC = () => {
                       if (editingMessage) {
                         setEditingMessage({ ...editingMessage, text: e.target.value });
                       } else {
-                        setNewMessage(e.target.value);
+                        handleTyping(e.target.value);
                       }
                     }}
                     onKeyPress={handleKeyPress}
@@ -1133,11 +1228,7 @@ const ChatPage: React.FC = () => {
                   />
                   <IconButton
                     color="primary"
-                    onClick={editingMessage ? () => {
-                      // Handle edit save
-                      console.log('Saving edit:', editingMessage);
-                      setEditingMessage(null);
-                    } : (newMessage.trim() ? handleSendMessage : () => setShowVoiceRecorder(true))}
+                    onClick={editingMessage ? handleSaveEdit : (newMessage.trim() ? handleSendMessage : () => setShowVoiceRecorder(true))}
                     sx={{
                       bgcolor: '#25D366',
                       color: 'white',
@@ -1218,6 +1309,60 @@ const ChatPage: React.FC = () => {
           </Box>
         </Box>
       </Menu>
+
+      {/* Message Search Dialog */}
+      <MessageSearch
+        open={messageSearchOpen}
+        onClose={() => setMessageSearchOpen(false)}
+        onMessageSelect={(conversationId, messageId) => {
+          setActiveConversation(conversationId);
+          setMessageSearchOpen(false);
+          // In a real app, you'd scroll to the specific message
+          console.log('Navigate to message:', messageId, 'in conversation:', conversationId);
+        }}
+      />
+
+      {/* Group Creation Dialog */}
+      <GroupCreationDialog
+        open={groupCreationOpen}
+        onClose={() => setGroupCreationOpen(false)}
+        onCreateGroup={(name, participants, avatar) => {
+          console.log('Creating group:', { name, participants, avatar });
+          // In a real app, this would create the group via API
+          setGroupCreationOpen(false);
+        }}
+        availableContacts={conversations.map(conv => conv.contact)}
+      />
+
+      {/* Media Gallery */}
+      <MediaGallery
+        open={mediaGalleryOpen}
+        onClose={() => setMediaGalleryOpen(false)}
+        mediaItems={activeConversation?.messages
+          .filter(msg => msg.type && ['image', 'video', 'audio'].includes(msg.type) && msg.mediaUrl)
+          .map(msg => ({
+            id: msg.id,
+            type: msg.type as 'image' | 'video' | 'audio',
+            url: msg.mediaUrl!,
+            caption: msg.text,
+            timestamp: msg.timestamp,
+            sender: msg.sender === 'me' ? user?.displayName : activeConversation?.contact.name,
+            senderAvatar: msg.sender === 'me' ? user?.profilePicture : activeConversation?.contact.avatar,
+          })) || []}
+        initialIndex={selectedMediaIndex}
+        onDownload={(item) => {
+          console.log('Downloading media:', item);
+          // In a real app, this would trigger download
+        }}
+        onShare={(item) => {
+          console.log('Sharing media:', item);
+          // In a real app, this would open share dialog
+        }}
+        onDelete={(item) => {
+          console.log('Deleting media:', item);
+          // In a real app, this would delete the message
+        }}
+      />
 
       {/* Enhanced Settings Drawer */}
       <Drawer

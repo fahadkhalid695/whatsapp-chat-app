@@ -1,19 +1,22 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   Dialog,
   DialogTitle,
   DialogContent,
-  Box,
   TextField,
-  InputAdornment,
   List,
   ListItem,
   ListItemText,
+  ListItemAvatar,
+  Avatar,
   Typography,
+  Box,
   Chip,
   IconButton,
-  Avatar,
+  InputAdornment,
   Divider,
+  Paper,
+  Fade,
 } from '@mui/material';
 import {
   Search,
@@ -22,6 +25,7 @@ import {
   VideoLibrary,
   AudioFile,
   AttachFile,
+  ArrowForward,
 } from '@mui/icons-material';
 import { useChatStore, Message } from '../store/chatStore';
 
@@ -31,6 +35,14 @@ interface MessageSearchProps {
   onMessageSelect: (conversationId: string, messageId: string) => void;
 }
 
+interface SearchResult {
+  message: Message;
+  conversationId: string;
+  conversationName: string;
+  conversationAvatar: string;
+  matchedText: string;
+}
+
 const MessageSearch: React.FC<MessageSearchProps> = ({
   open,
   onClose,
@@ -38,45 +50,78 @@ const MessageSearch: React.FC<MessageSearchProps> = ({
 }) => {
   const { conversations } = useChatStore();
   const [searchQuery, setSearchQuery] = useState('');
-  const [searchResults, setSearchResults] = useState<{
-    message: Message;
-    conversationId: string;
-    contactName: string;
-  }[]>([]);
-  const [selectedFilter, setSelectedFilter] = useState<'all' | 'text' | 'image' | 'video' | 'audio' | 'document'>('all');
+  const [selectedFilter, setSelectedFilter] = useState<'all' | 'text' | 'media'>('all');
 
-  useEffect(() => {
-    if (searchQuery.trim()) {
-      const results: typeof searchResults = [];
-      
-      conversations.forEach((conversation) => {
-        conversation.messages.forEach((message) => {
-          const matchesQuery = message.text.toLowerCase().includes(searchQuery.toLowerCase());
-          const matchesFilter = selectedFilter === 'all' || 
-                               (selectedFilter === 'text' && (!message.type || message.type === 'text')) ||
-                               (selectedFilter !== 'text' && message.type === selectedFilter);
-          
-          if (matchesQuery && matchesFilter) {
-            results.push({
-              message,
-              conversationId: conversation.id,
-              contactName: conversation.contact.name,
-            });
+  const searchResults = useMemo(() => {
+    if (!searchQuery.trim()) return [];
+
+    const results: SearchResult[] = [];
+    const query = searchQuery.toLowerCase();
+
+    conversations.forEach((conversation) => {
+      conversation.messages.forEach((message) => {
+        let matches = false;
+        let matchedText = '';
+
+        // Text search
+        if (selectedFilter === 'all' || selectedFilter === 'text') {
+          if (message.text.toLowerCase().includes(query)) {
+            matches = true;
+            matchedText = message.text;
           }
-        });
+        }
+
+        // Media search
+        if (selectedFilter === 'all' || selectedFilter === 'media') {
+          if (message.type && message.type !== 'text') {
+            if (message.fileName?.toLowerCase().includes(query) ||
+                message.text.toLowerCase().includes(query)) {
+              matches = true;
+              matchedText = message.fileName || message.text;
+            }
+          }
+        }
+
+        if (matches) {
+          results.push({
+            message,
+            conversationId: conversation.id,
+            conversationName: conversation.contact.name,
+            conversationAvatar: conversation.contact.avatar,
+            matchedText,
+          });
+        }
       });
-      
-      // Sort by timestamp (newest first)
-      results.sort((a, b) => b.message.timestamp.getTime() - a.message.timestamp.getTime());
-      setSearchResults(results);
-    } else {
-      setSearchResults([]);
-    }
+    });
+
+    // Sort by timestamp (newest first)
+    return results.sort((a, b) => 
+      b.message.timestamp.getTime() - a.message.timestamp.getTime()
+    );
   }, [searchQuery, selectedFilter, conversations]);
 
-  const handleMessageClick = (conversationId: string, messageId: string) => {
-    onMessageSelect(conversationId, messageId);
-    onClose();
+  const highlightText = (text: string, query: string) => {
+    if (!query.trim()) return text;
+    
+    const regex = new RegExp(`(${query})`, 'gi');
+    const parts = text.split(regex);
+    
+    return parts.map((part, index) => 
+      regex.test(part) ? (
+        <span key={index} style={{ backgroundColor: '#ffeb3b', fontWeight: 'bold' }}>
+          {part}
+        </span>
+      ) : part
+    );
+  };
+
+  const getMediaIcon = (type: string) => {
+    switch (type) {
+      case 'image': return <Image fontSize="small" />;
+      case 'video': return <VideoLibrary fontSize="small" />;
+      case 'audio': return <AudioFile fontSize="small" />;
+      default: return <AttachFile fontSize="small" />;
+    }
   };
 
   const formatTimestamp = (date: Date) => {
@@ -99,38 +144,6 @@ const MessageSearch: React.FC<MessageSearchProps> = ({
     }
   };
 
-  const getMessageTypeIcon = (type?: string) => {
-    switch (type) {
-      case 'image':
-        return <Image fontSize="small" />;
-      case 'video':
-        return <VideoLibrary fontSize="small" />;
-      case 'audio':
-        return <AudioFile fontSize="small" />;
-      case 'document':
-        return <AttachFile fontSize="small" />;
-      default:
-        return null;
-    }
-  };
-
-  const highlightText = (text: string, query: string) => {
-    if (!query.trim()) return text;
-    
-    const regex = new RegExp(`(${query})`, 'gi');
-    const parts = text.split(regex);
-    
-    return parts.map((part, index) =>
-      regex.test(part) ? (
-        <span key={index} style={{ backgroundColor: '#ffeb3b', fontWeight: 'bold' }}>
-          {part}
-        </span>
-      ) : (
-        part
-      )
-    );
-  };
-
   return (
     <Dialog
       open={open}
@@ -138,155 +151,185 @@ const MessageSearch: React.FC<MessageSearchProps> = ({
       maxWidth="md"
       fullWidth
       PaperProps={{
-        sx: { height: '80vh', borderRadius: 2 }
+        sx: {
+          borderRadius: 3,
+          maxHeight: '80vh',
+        },
       }}
     >
-      <DialogTitle sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <Typography variant="h6">Search Messages</Typography>
-        <IconButton onClick={onClose}>
-          <Close />
-        </IconButton>
+      <DialogTitle sx={{ pb: 1 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <Typography variant="h6" fontWeight="bold">
+            Search Messages
+          </Typography>
+          <IconButton onClick={onClose} size="small">
+            <Close />
+          </IconButton>
+        </Box>
       </DialogTitle>
 
-      <DialogContent sx={{ p: 0 }}>
+      <DialogContent sx={{ pt: 1 }}>
         {/* Search Input */}
-        <Box sx={{ p: 2, borderBottom: '1px solid #e0e0e0' }}>
-          <TextField
-            fullWidth
-            placeholder="Search in messages..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            InputProps={{
-              startAdornment: (
-                <InputAdornment position="start">
-                  <Search />
-                </InputAdornment>
-              ),
-            }}
-            sx={{
-              '& .MuiOutlinedInput-root': {
-                borderRadius: 3,
-              },
-            }}
+        <TextField
+          fullWidth
+          placeholder="Search in messages..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          InputProps={{
+            startAdornment: (
+              <InputAdornment position="start">
+                <Search color="action" />
+              </InputAdornment>
+            ),
+            endAdornment: searchQuery && (
+              <InputAdornment position="end">
+                <IconButton
+                  size="small"
+                  onClick={() => setSearchQuery('')}
+                >
+                  <Close />
+                </IconButton>
+              </InputAdornment>
+            ),
+          }}
+          sx={{
+            mb: 2,
+            '& .MuiOutlinedInput-root': {
+              borderRadius: 3,
+            },
+          }}
+        />
+
+        {/* Filter Chips */}
+        <Box sx={{ display: 'flex', gap: 1, mb: 2 }}>
+          <Chip
+            label="All"
+            variant={selectedFilter === 'all' ? 'filled' : 'outlined'}
+            color={selectedFilter === 'all' ? 'primary' : 'default'}
+            onClick={() => setSelectedFilter('all')}
+            size="small"
+          />
+          <Chip
+            label="Text"
+            variant={selectedFilter === 'text' ? 'filled' : 'outlined'}
+            color={selectedFilter === 'text' ? 'primary' : 'default'}
+            onClick={() => setSelectedFilter('text')}
+            size="small"
+          />
+          <Chip
+            label="Media"
+            variant={selectedFilter === 'media' ? 'filled' : 'outlined'}
+            color={selectedFilter === 'media' ? 'primary' : 'default'}
+            onClick={() => setSelectedFilter('media')}
+            size="small"
           />
         </Box>
 
-        {/* Filter Chips */}
-        <Box sx={{ p: 2, display: 'flex', gap: 1, flexWrap: 'wrap', borderBottom: '1px solid #e0e0e0' }}>
-          {[
-            { key: 'all', label: 'All', icon: null },
-            { key: 'text', label: 'Text', icon: null },
-            { key: 'image', label: 'Images', icon: <Image fontSize="small" /> },
-            { key: 'video', label: 'Videos', icon: <VideoLibrary fontSize="small" /> },
-            { key: 'audio', label: 'Audio', icon: <AudioFile fontSize="small" /> },
-            { key: 'document', label: 'Documents', icon: <AttachFile fontSize="small" /> },
-          ].map((filter) => (
-            <Chip
-              key={filter.key}
-              label={filter.label}
-              icon={filter.icon}
-              onClick={() => setSelectedFilter(filter.key as any)}
-              variant={selectedFilter === filter.key ? 'filled' : 'outlined'}
-              color={selectedFilter === filter.key ? 'primary' : 'default'}
-              size="small"
-            />
-          ))}
-        </Box>
+        {/* Results */}
+        {searchQuery.trim() ? (
+          <Box>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+              {searchResults.length} result{searchResults.length !== 1 ? 's' : ''} found
+            </Typography>
 
-        {/* Search Results */}
-        <Box sx={{ height: 'calc(100% - 140px)', overflow: 'auto' }}>
-          {searchQuery.trim() === '' ? (
-            <Box
-              sx={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                height: '100%',
-                flexDirection: 'column',
-                color: 'text.secondary',
-              }}
-            >
-              <Search sx={{ fontSize: 48, mb: 2 }} />
-              <Typography variant="h6" gutterBottom>
-                Search Messages
-              </Typography>
-              <Typography variant="body2" textAlign="center">
-                Type in the search box to find messages across all conversations
-              </Typography>
-            </Box>
-          ) : searchResults.length === 0 ? (
-            <Box
-              sx={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                height: '100%',
-                flexDirection: 'column',
-                color: 'text.secondary',
-              }}
-            >
-              <Typography variant="h6" gutterBottom>
-                No messages found
-              </Typography>
-              <Typography variant="body2">
-                Try different keywords or check your spelling
-              </Typography>
-            </Box>
-          ) : (
-            <List sx={{ p: 0 }}>
-              {searchResults.map((result, index) => (
-                <React.Fragment key={`${result.conversationId}-${result.message.id}`}>
-                  <ListItem
-                    button
-                    onClick={() => handleMessageClick(result.conversationId, result.message.id)}
-                    sx={{
-                      py: 2,
-                      '&:hover': {
-                        bgcolor: '#f5f5f5',
-                      },
-                    }}
-                  >
-                    <Avatar
-                      src={conversations.find(c => c.id === result.conversationId)?.contact.avatar}
-                      sx={{ mr: 2 }}
+            {searchResults.length > 0 ? (
+              <List sx={{ p: 0 }}>
+                {searchResults.map((result, index) => (
+                  <Fade key={`${result.conversationId}-${result.message.id}`} in={true} timeout={300 + index * 50}>
+                    <Paper
+                      sx={{
+                        mb: 1,
+                        borderRadius: 2,
+                        overflow: 'hidden',
+                        cursor: 'pointer',
+                        transition: 'all 0.2s ease',
+                        '&:hover': {
+                          boxShadow: 2,
+                          transform: 'translateY(-1px)',
+                        },
+                      }}
+                      onClick={() => {
+                        onMessageSelect(result.conversationId, result.message.id);
+                        onClose();
+                      }}
                     >
-                      {result.contactName.charAt(0)}
-                    </Avatar>
-                    
-                    <ListItemText
-                      primary={
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
-                          <Typography variant="subtitle2" fontWeight="medium">
-                            {result.contactName}
-                          </Typography>
-                          {getMessageTypeIcon(result.message.type)}
-                          <Typography variant="caption" color="text.secondary">
-                            {formatTimestamp(result.message.timestamp)}
-                          </Typography>
-                        </Box>
-                      }
-                      secondary={
-                        <Typography
-                          variant="body2"
-                          color="text.secondary"
-                          sx={{
-                            display: '-webkit-box',
-                            WebkitLineClamp: 2,
-                            WebkitBoxOrient: 'vertical',
-                            overflow: 'hidden',
-                          }}
-                        >
-                          {highlightText(result.message.text, searchQuery)}
-                        </Typography>
-                      }
-                    />
-                  </ListItem>
-                  {index < searchResults.length - 1 && <Divider />}
-                </React.Fragment>
-              ))}
-            </List>
-          )}
-        </Box>
+                      <ListItem sx={{ py: 2 }}>
+                        <ListItemAvatar>
+                          <Avatar src={result.conversationAvatar}>
+                            {result.conversationName.charAt(0)}
+                          </Avatar>
+                        </ListItemAvatar>
+                        
+                        <ListItemText
+                          primary={
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
+                              <Typography variant="subtitle2" fontWeight="bold">
+                                {result.conversationName}
+                              </Typography>
+                              {result.message.type && result.message.type !== 'text' && (
+                                <Chip
+                                  icon={getMediaIcon(result.message.type)}
+                                  label={result.message.type}
+                                  size="small"
+                                  variant="outlined"
+                                  sx={{ height: 20, fontSize: '0.7rem' }}
+                                />
+                              )}
+                            </Box>
+                          }
+                          secondary={
+                            <Box>
+                              <Typography
+                                variant="body2"
+                                sx={{
+                                  display: '-webkit-box',
+                                  WebkitLineClamp: 2,
+                                  WebkitBoxOrient: 'vertical',
+                                  overflow: 'hidden',
+                                  mb: 0.5,
+                                }}
+                              >
+                                {highlightText(result.matchedText, searchQuery)}
+                              </Typography>
+                              <Typography variant="caption" color="text.secondary">
+                                {formatTimestamp(result.message.timestamp)} • 
+                                {result.message.sender === 'me' ? ' You' : ` ${result.conversationName}`}
+                              </Typography>
+                            </Box>
+                          }
+                        />
+                        
+                        <IconButton size="small" sx={{ color: 'primary.main' }}>
+                          <ArrowForward />
+                        </IconButton>
+                      </ListItem>
+                    </Paper>
+                  </Fade>
+                ))}
+              </List>
+            ) : (
+              <Box sx={{ textAlign: 'center', py: 4 }}>
+                <Search sx={{ fontSize: 48, color: 'text.disabled', mb: 2 }} />
+                <Typography variant="h6" color="text.secondary" gutterBottom>
+                  No results found
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  Try different keywords or check your spelling
+                </Typography>
+              </Box>
+            )}
+          </Box>
+        ) : (
+          <Box sx={{ textAlign: 'center', py: 4 }}>
+            <Search sx={{ fontSize: 48, color: 'text.disabled', mb: 2 }} />
+            <Typography variant="h6" color="text.secondary" gutterBottom>
+              Search Messages
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              Find messages, media, and files across all your conversations
+            </Typography>
+          </Box>
+        )}
       </DialogContent>
     </Dialog>
   );
