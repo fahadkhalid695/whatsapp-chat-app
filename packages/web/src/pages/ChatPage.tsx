@@ -61,13 +61,13 @@ import VoiceRecorder from '../components/VoiceRecorder';
 import MessageSearch from '../components/MessageSearch';
 import ConnectionStatus from '../components/ConnectionStatus';
 import MessageBubble from '../components/MessageBubble';
-import MessageReactions from '../components/MessageReactions';
-import VirtualizedMessageList from '../components/VirtualizedMessageList';
-import GroupCreationDialog from '../components/GroupCreationDialog';
-import GroupSettingsDialog from '../components/GroupSettingsDialog';
-import MediaGallery from '../components/MediaGallery';
-import PerformanceMonitor from '../components/PerformanceMonitor';
-import NetworkAwareLoader from '../components/NetworkAwareLoader';
+// import MessageReactions from '../components/MessageReactions';
+// import VirtualizedMessageList from '../components/VirtualizedMessageList';
+// import GroupCreationDialog from '../components/GroupCreationDialog';
+// import GroupSettingsDialog from '../components/GroupSettingsDialog';
+// import MediaGallery from '../components/MediaGallery';
+// import PerformanceMonitor from '../components/PerformanceMonitor';
+// import NetworkAwareLoader from '../components/NetworkAwareLoader';
 
 // Typing animation keyframes
 const typingAnimation = keyframes`
@@ -608,20 +608,8 @@ const ChatPage: React.FC = () => {
                 position: 'relative',
               }}
             >
-              {useVirtualizedList ? (
-                <VirtualizedMessageList
-                  messages={activeConversation.messages}
-                  currentUserId={user?.id || ''}
-                  senderName={activeConversation.contact.name}
-                  senderAvatar={activeConversation.contact.avatar}
-                  onReply={handleReply}
-                  onForward={handleForward}
-                  onDelete={handleDelete}
-                  onEdit={handleEdit}
-                  onReaction={handleReaction}
-                  onRemoveReaction={handleRemoveReaction}
-                  onMediaClick={handleMediaClick}
-                />
+              {false ? (
+                <div>Virtualized list temporarily disabled</div>
               ) : (
                 <Box sx={{ p: 1, overflow: 'auto', height: '100%' }}>
                   {activeConversation.messages.map((message, index) => {
@@ -954,63 +942,57 @@ const ChatPage: React.FC = () => {
         </Box>
       </Drawer>
 
-      {/* Group Creation Dialog */}
-      <GroupCreationDialog
-        open={groupCreationOpen}
-        onClose={() => setGroupCreationOpen(false)}
-        onCreateGroup={handleGroupCreate}
-        availableContacts={conversations.map(conv => conv.contact)}
-      />
-
-      {/* Group Settings Dialog */}
-      {activeConversation && (
-        <GroupSettingsDialog
-          open={groupSettingsOpen}
-          onClose={() => setGroupSettingsOpen(false)}
-          conversation={activeConversation}
-          currentUserId={user?.id || ''}
-          onUpdateGroup={(updates) => {
-            console.log('Updating group:', updates);
-            setGroupSettingsOpen(false);
-          }}
-          onLeaveGroup={() => {
-            console.log('Leaving group');
-            setGroupSettingsOpen(false);
-          }}
-        />
+      {/* Group Creation Dialog - Temporarily disabled */}
+      {groupCreationOpen && (
+        <Dialog open={groupCreationOpen} onClose={() => setGroupCreationOpen(false)}>
+          <DialogTitle>Create Group</DialogTitle>
+          <DialogContent>
+            <Typography>Group creation feature coming soon!</Typography>
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={() => setGroupCreationOpen(false)}>Close</Button>
+          </DialogActions>
+        </Dialog>
       )}
 
-      {/* Media Gallery */}
-      <MediaGallery
-        open={mediaGalleryOpen}
-        onClose={() => setMediaGalleryOpen(false)}
-        mediaItems={activeConversation?.messages.filter(msg => 
-          msg.type && ['image', 'video'].includes(msg.type) && msg.mediaUrl
-        ).map(msg => ({
-          id: msg.id,
-          type: msg.type as 'image' | 'video',
-          url: msg.mediaUrl!,
-          caption: msg.text,
-          timestamp: msg.timestamp,
-        })) || []}
-        initialIndex={selectedMediaIndex}
-        onDownload={(item) => {
-          console.log('Downloading media:', item);
-        }}
-        onShare={(item) => {
-          console.log('Sharing media:', item);
-        }}
-      />
+      {/* Group Settings Dialog - Temporarily disabled */}
+      {groupSettingsOpen && (
+        <Dialog open={groupSettingsOpen} onClose={() => setGroupSettingsOpen(false)}>
+          <DialogTitle>Group Settings</DialogTitle>
+          <DialogContent>
+            <Typography>Group settings feature coming soon!</Typography>
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={() => setGroupSettingsOpen(false)}>Close</Button>
+          </DialogActions>
+        </Dialog>
+      )}
 
-      {/* Performance Monitor */}
+      {/* Media Gallery - Temporarily disabled */}
+      {mediaGalleryOpen && (
+        <Dialog open={mediaGalleryOpen} onClose={() => setMediaGalleryOpen(false)} maxWidth="md" fullWidth>
+          <DialogTitle>Media Gallery</DialogTitle>
+          <DialogContent>
+            <Typography>Media gallery feature coming soon!</Typography>
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={() => setMediaGalleryOpen(false)}>Close</Button>
+          </DialogActions>
+        </Dialog>
+      )}
+
+      {/* Performance Monitor - Temporarily disabled */}
       {showPerformanceMonitor && (
-        <PerformanceMonitor
-          onClose={() => setShowPerformanceMonitor(false)}
-        />
+        <Dialog open={showPerformanceMonitor} onClose={() => setShowPerformanceMonitor(false)}>
+          <DialogTitle>Performance Monitor</DialogTitle>
+          <DialogContent>
+            <Typography>Performance monitoring feature coming soon!</Typography>
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={() => setShowPerformanceMonitor(false)}>Close</Button>
+          </DialogActions>
+        </Dialog>
       )}
-
-      {/* Network Aware Loader */}
-      <NetworkAwareLoader />
     </Box>
   );
 };

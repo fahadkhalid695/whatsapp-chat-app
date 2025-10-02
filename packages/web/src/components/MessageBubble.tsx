@@ -19,7 +19,7 @@ import {
   Forward,
   Delete,
   Edit,
-  Copy,
+  ContentCopy as Copy,
   Download,
   PlayArrow,
   Pause,
