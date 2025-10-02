@@ -13,6 +13,7 @@ import {
   GetApp,
   Image as ImageIcon,
 } from '@mui/icons-material';
+import LazyImage from './LazyImage';
 import { Message } from '../types';
 import { useAuthStore } from '../store/authStore';
 
@@ -59,20 +60,22 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
       return (
         <Box>
           {content.mediaUrl ? (
-            <img
-              src={content.mediaUrl}
-              alt="Shared image"
-              style={{
-                maxWidth: '300px',
-                maxHeight: '300px',
-                width: '100%',
-                height: 'auto',
-                borderRadius: '8px',
-                display: 'block',
-                cursor: 'pointer',
-              }}
+            <Box
               onClick={() => onMediaClick?.(message)}
-            />
+              sx={{ cursor: 'pointer', borderRadius: 1, overflow: 'hidden' }}
+            >
+              <LazyImage
+                src={content.mediaUrl}
+                alt="Shared image"
+                width="300px"
+                height="300px"
+                style={{
+                  maxWidth: '300px',
+                  maxHeight: '300px',
+                  borderRadius: '8px',
+                }}
+              />
+            </Box>
           ) : (
             <Box
               display="flex"
@@ -115,12 +118,15 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
             onClick={() => onMediaClick?.(message)}
           >
             {content.thumbnailUrl ? (
-              <img
+              <LazyImage
                 src={content.thumbnailUrl}
                 alt="Video thumbnail"
+                width="100%"
+                height="100%"
                 style={{
-                  width: '100%',
-                  height: '100%',
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
                   objectFit: 'cover',
                   borderRadius: '8px',
                 }}

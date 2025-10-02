@@ -8,6 +8,7 @@ import LoginPage from './pages/LoginPage';
 import VerificationPage from './pages/VerificationPage';
 import ProfileSetupPage from './pages/ProfileSetupPage';
 import ChatPage from './pages/ChatPage';
+import PerformanceMonitor from './components/PerformanceMonitor';
 
 const theme = createTheme({
   palette: {
@@ -24,6 +25,40 @@ const theme = createTheme({
   },
   typography: {
     fontFamily: '"Roboto", "Helvetica", "Arial", sans-serif',
+  },
+  breakpoints: {
+    values: {
+      xs: 0,
+      sm: 600,
+      md: 960,
+      lg: 1280,
+      xl: 1920,
+    },
+  },
+  components: {
+    MuiContainer: {
+      styleOverrides: {
+        root: {
+          '@media (max-width: 600px)': {
+            paddingLeft: 8,
+            paddingRight: 8,
+          },
+        },
+      },
+    },
+    MuiAppBar: {
+      styleOverrides: {
+        root: {
+          '@media (max-width: 600px)': {
+            '& .MuiToolbar-root': {
+              minHeight: 56,
+              paddingLeft: 8,
+              paddingRight: 8,
+            },
+          },
+        },
+      },
+    },
   },
 });
 
@@ -66,6 +101,7 @@ const App: React.FC = () => {
             element={<Navigate to={isAuthenticated ? "/chat" : "/login"} replace />} 
           />
         </Routes>
+        <PerformanceMonitor />
       </Router>
     </ThemeProvider>
   );

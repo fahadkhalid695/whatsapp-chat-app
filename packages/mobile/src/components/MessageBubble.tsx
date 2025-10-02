@@ -1,12 +1,15 @@
-import React from 'react';
+import React, { memo } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   TouchableOpacity,
   Image,
+  Dimensions,
+  Platform,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
+import LazyImage from './LazyImage';
 import { Message } from '../types';
 import { useAuthStore } from '../store/authStore';
 
@@ -18,7 +21,11 @@ interface MessageBubbleProps {
   onMediaPress?: (message: Message) => void;
 }
 
-const MessageBubble: React.FC<MessageBubbleProps> = ({
+const { width: screenWidth } = Dimensions.get('window');
+const isTablet = screenWidth >= 768;
+const maxBubbleWidth = isTablet ? screenWidth * 0.6 : screenWidth * 0.8;
+
+const MessageBubble: React.FC<MessageBubbleProps> = memo(({
   message,
   showTimestamp = false,
   onPress,
@@ -63,16 +70,12 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
         return (
           <View style={styles.mediaContainer}>
             {message.content.mediaUrl && (
-              <TouchableOpacity
+              <LazyImage
+                source={{ uri: message.content.mediaUrl }}
+                style={styles.messageImage}
+                resizeMode="cover"
                 onPress={() => onMediaPress?.(message)}
-                activeOpacity={0.8}
-              >
-                <Image
-                  source={{ uri: message.content.mediaUrl }}
-                  style={styles.messageImage}
-                  resizeMode="cover"
-                />
-              </TouchableOpacity>
+              />
             )}
             {message.content.text && (
               <Text style={[
@@ -95,7 +98,7 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
             >
               <View style={styles.videoPlaceholder}>
                 {message.content.thumbnailUrl ? (
-                  <Image
+                  <LazyImage
                     source={{ uri: message.content.thumbnailUrl }}
                     style={styles.videoThumbnail}
                     resizeMode="cover"
@@ -156,10 +159,14 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
         style={[
           styles.messageBubble,
           isOwnMessage ? styles.ownMessageBubble : styles.otherMessageBubble,
+          { maxWidth: maxBubbleWidth },
+          isTablet && styles.messageBubbleTablet,
         ]}
         onPress={onPress}
         onLongPress={onLongPress}
         activeOpacity={0.7}
+        delayPressIn={50} // Faster touch response
+        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }} // Larger touch area
       >
         {renderMessageContent()}
         
@@ -195,10 +202,15 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
   },
   messageBubble: {
-    maxWidth: '80%',
     borderRadius: 18,
     paddingHorizontal: 12,
     paddingVertical: 8,
+    minHeight: 44, // Minimum touch target size
+  },
+  messageBubbleTablet: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 20,
   },
   ownMessageBubble: {
     backgroundColor: '#DCF8C6',
@@ -209,8 +221,8 @@ const styles = StyleSheet.create({
     borderColor: '#f0f0f0',
   },
   messageText: {
-    fontSize: 16,
-    lineHeight: 20,
+    fontSize: isTablet ? 18 : 16,
+    lineHeight: isTablet ? 24 : 20,
   },
   ownMessageText: {
     color: '#000',
@@ -244,8 +256,8 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   messageImage: {
-    width: 200,
-    height: 200,
+    width: isTablet ? 250 : 200,
+    height: isTablet ? 250 : 200,
     borderRadius: 12,
     marginBottom: 4,
   },
@@ -253,8 +265,8 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   videoPlaceholder: {
-    width: 200,
-    height: 200,
+    width: isTablet ? 250 : 200,
+    height: isTablet ? 250 : 200,
     backgroundColor: '#000',
     borderRadius: 12,
     justifyContent: 'center',

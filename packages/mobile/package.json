@@ -35,7 +35,9 @@
     "react-native-permissions": "^3.8.4",
     "react-native-contacts": "^7.0.8",
     "react-native-document-picker": "^9.1.1",
-    "react-native-video": "^5.2.1"
+    "react-native-video": "^5.2.1",
+    "@react-native-netinfo/netinfo": "^9.4.1",
+    "react-native-fs": "^2.20.0"
   },
   "devDependencies": {
     "@types/react": "^18.2.15",

@@ -36,10 +36,14 @@ import GroupSettingsDialog from '../components/GroupSettingsDialog';
 import { MessageContent, MessageType, Conversation, Message, Contact } from '../types';
 
 const DRAWER_WIDTH = 320;
+const MOBILE_DRAWER_WIDTH = '100%';
+const TABLET_DRAWER_WIDTH = 280;
 
 const ChatPage: React.FC = () => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+  const isTablet = useMediaQuery(theme.breakpoints.between('md', 'lg'));
+  const isSmallScreen = useMediaQuery(theme.breakpoints.down('sm'));
   const { user, logout } = useAuthStore();
   const {
     conversations,
@@ -535,11 +539,15 @@ const ChatPage: React.FC = () => {
         open={drawerOpen}
         onClose={() => setDrawerOpen(false)}
         sx={{
-          width: DRAWER_WIDTH,
+          width: isMobile ? MOBILE_DRAWER_WIDTH : isTablet ? TABLET_DRAWER_WIDTH : DRAWER_WIDTH,
           flexShrink: 0,
           '& .MuiDrawer-paper': {
-            width: DRAWER_WIDTH,
+            width: isMobile ? MOBILE_DRAWER_WIDTH : isTablet ? TABLET_DRAWER_WIDTH : DRAWER_WIDTH,
             boxSizing: 'border-box',
+            ...(isMobile && {
+              top: 0,
+              height: '100vh',
+            }),
           },
         }}
       >

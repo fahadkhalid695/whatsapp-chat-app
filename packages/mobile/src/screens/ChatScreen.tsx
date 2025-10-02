@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef, useCallback } from 'react';
+import React, { useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import {
   View,
   FlatList,
@@ -9,6 +9,7 @@ import {
   Alert,
   Text,
   TouchableOpacity,
+  Dimensions,
 } from 'react-native';
 import { useRoute, useNavigation, RouteProp } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
@@ -21,13 +22,20 @@ import { socketService } from '../services/socket';
 import MessageBubble from '../components/MessageBubble';
 import MessageInput from '../components/MessageInput';
 import MediaPicker from '../components/MediaPicker';
+import VirtualizedMessageList from '../components/VirtualizedMessageList';
+import TouchOptimizedButton from '../components/TouchOptimizedButton';
+import usePerformanceOptimization from '../hooks/usePerformanceOptimization';
 
 type ChatScreenRouteProp = RouteProp<RootStackParamList, 'Chat'>;
 type ChatScreenNavigationProp = StackNavigationProp<RootStackParamList, 'Chat'>;
 
+const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
+const isTablet = screenWidth >= 768;
+
 const ChatScreen: React.FC = () => {
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [showMediaPicker, setShowMediaPicker] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const flatListRef = useRef<FlatList>(null);
   
   const route = useRoute<ChatScreenRouteProp>();
@@ -44,6 +52,25 @@ const ChatScreen: React.FC = () => {
     setActiveConversation,
     setTypingUsers,
   } = useChatStore();
+
+  const { user } = useAuthStore();
+  
+  const {
+    startRenderMeasurement,
+    endRenderMeasurement,
+    runAfterInteractions,
+    optimizeForLowEndDevice,
+    isLowEndDevice,
+    memoryWarning,
+  } = usePerformanceOptimization({
+    onMemoryWarning: () => {
+      Alert.alert(
+        'Memory Warning',
+        'The app is using a lot of memory. Some features may be limited.',
+        [{ text: 'OK' }]
+      );
+    },
+  });
   
   const { user } = useAuthStore();
   const conversationMessages = messages[conversationId] || [];
@@ -131,7 +158,8 @@ const ChatScreen: React.FC = () => {
     socketService.stopTyping(conversationId);
   };
 
-  const renderMessage = ({ item, index }: { item: Message; index: number }) => {
+  // Memoize message rendering for better performance
+  const renderMessage = useCallback(({ item, index }: { item: Message; index: number }) => {
     const previousMessage = index > 0 ? conversationMessages[index - 1] : null;
     const showTimestamp = !previousMessage || 
       new Date(item.timestamp).getDate() !== new Date(previousMessage.timestamp).getDate();
@@ -157,7 +185,15 @@ const ChatScreen: React.FC = () => {
         }}
       />
     );
-  };
+  }, [conversationMessages]);
+
+  // Optimize FlatList performance
+  const keyExtractor = useCallback((item: Message) => item.id, []);
+  const getItemLayout = useCallback((data: any, index: number) => ({
+    length: 80, // Approximate message height
+    offset: 80 * index,
+    index,
+  }), []);
 
   const renderTypingIndicator = () => {
     const currentTypingUsers = typingUsers[conversationId] || [];
@@ -194,7 +230,8 @@ const ChatScreen: React.FC = () => {
           ref={flatListRef}
           data={conversationMessages}
           renderItem={renderMessage}
-          keyExtractor={(item) => item.id}
+          keyExtractor={keyExtractor}
+          getItemLayout={conversationMessages.length < 100 ? getItemLayout : undefined}
           contentContainerStyle={[
             styles.messagesList,
             conversationMessages.length === 0 && styles.emptyContainer,
@@ -209,6 +246,15 @@ const ChatScreen: React.FC = () => {
           }}
           showsVerticalScrollIndicator={false}
           inverted={false}
+          removeClippedSubviews={true}
+          maxToRenderPerBatch={10}
+          windowSize={10}
+          initialNumToRender={20}
+          updateCellsBatchingPeriod={50}
+          maintainVisibleContentPosition={{
+            minIndexForVisible: 0,
+            autoscrollToTopThreshold: 10,
+          }}
         />
 
         <MessageInput
