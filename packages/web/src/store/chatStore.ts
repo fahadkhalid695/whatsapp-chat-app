@@ -10,6 +10,9 @@ export interface Message {
   mediaUrl?: string;
   fileName?: string;
   reactions?: { emoji: string; users: string[] }[];
+  replyTo?: string;
+  editedAt?: Date;
+  isForwarded?: boolean;
 }
 
 export interface Contact {
@@ -124,19 +127,42 @@ const mockMessages: Record<string, Message[]> = {
       sender: 'me',
       timestamp: new Date(Date.now() - 3500000),
       status: 'read',
+      reactions: [
+        { emoji: '👍', users: ['alice'] },
+        { emoji: '❤️', users: ['alice', 'me'] },
+      ],
     },
     {
       id: '3',
-      text: 'What are you up to today?',
+      text: 'Check out this amazing sunset!',
       sender: 'other',
       timestamp: new Date(Date.now() - 3400000),
       status: 'read',
+      type: 'image',
+      mediaUrl: 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=400&h=300&fit=crop',
     },
     {
       id: '4',
-      text: 'Just working on some projects. How about you?',
+      text: 'Wow, that\'s beautiful! 🌅',
       sender: 'me',
       timestamp: new Date(Date.now() - 3300000),
+      status: 'delivered',
+      replyTo: '3',
+    },
+    {
+      id: '5',
+      text: 'Here\'s a quick voice message about our plans',
+      sender: 'me',
+      timestamp: new Date(Date.now() - 3200000),
+      status: 'read',
+      type: 'audio',
+      mediaUrl: 'data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBSuBzvLZiTYIG2m98OScTgwOUarm7blmGgU7k9n1unEiBC13yO/eizEIHWq+8+OWT',
+    },
+    {
+      id: '6',
+      text: 'Just working on some projects. How about you?',
+      sender: 'me',
+      timestamp: new Date(Date.now() - 3100000),
       status: 'delivered',
     },
   ],
@@ -170,6 +196,26 @@ const mockMessages: Record<string, Message[]> = {
       sender: 'me',
       timestamp: new Date(Date.now() - 10700000),
       status: 'read',
+    },
+    {
+      id: '9',
+      text: 'Here\'s the presentation we discussed',
+      sender: 'me',
+      timestamp: new Date(Date.now() - 10600000),
+      status: 'read',
+      type: 'document',
+      fileName: 'Project_Presentation.pdf',
+      mediaUrl: 'data:application/pdf;base64,JVBERi0xLjQKJcOkw7zDtsO8',
+    },
+    {
+      id: '10',
+      text: 'Perfect! I\'ll review it tonight',
+      sender: 'other',
+      timestamp: new Date(Date.now() - 10500000),
+      status: 'read',
+      reactions: [
+        { emoji: '👍', users: ['carol'] },
+      ],
     },
   ],
 };

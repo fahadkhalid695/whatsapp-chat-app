@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { keyframes } from '@mui/system';
 import {
   Box,
   AppBar,
@@ -19,6 +20,15 @@ import {
   Fade,
   Card,
   CardMedia,
+  Drawer,
+  Divider,
+  Switch,
+  FormControlLabel,
+  Button,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
 } from '@mui/material';
 import {
   Search,
@@ -32,6 +42,16 @@ import {
   PlayArrow,
   Pause,
   VolumeUp,
+  Settings,
+  Group,
+  PersonAdd,
+  Archive,
+  Notifications,
+  Security,
+  Help,
+  Info,
+  Close,
+  Add,
 } from '@mui/icons-material';
 import { useAuthStore } from '../store/authStore';
 import { useChatStore, Message, Contact } from '../store/chatStore';
@@ -39,6 +59,27 @@ import MediaUpload from '../components/MediaUpload';
 import EmojiPicker from '../components/EmojiPicker';
 import VoiceRecorder from '../components/VoiceRecorder';
 import MessageSearch from '../components/MessageSearch';
+import ConnectionStatus from '../components/ConnectionStatus';
+import MessageBubble from '../components/MessageBubble';
+import MessageReactions from '../components/MessageReactions';
+import VirtualizedMessageList from '../components/VirtualizedMessageList';
+import GroupCreationDialog from '../components/GroupCreationDialog';
+import GroupSettingsDialog from '../components/GroupSettingsDialog';
+import MediaGallery from '../components/MediaGallery';
+import PerformanceMonitor from '../components/PerformanceMonitor';
+import NetworkAwareLoader from '../components/NetworkAwareLoader';
+
+// Typing animation keyframes
+const typingAnimation = keyframes`
+  0%, 60%, 100% {
+    transform: translateY(0);
+    opacity: 0.4;
+  }
+  30% {
+    transform: translateY(-10px);
+    opacity: 1;
+  }
+`;
 
 const ChatPage: React.FC = () => {
   const { user, logout } = useAuthStore();
@@ -58,6 +99,17 @@ const ChatPage: React.FC = () => {
   const [emojiAnchor, setEmojiAnchor] = useState<null | HTMLElement>(null);
   const [showVoiceRecorder, setShowVoiceRecorder] = useState(false);
   const [messageSearchOpen, setMessageSearchOpen] = useState(false);
+  const [settingsDrawerOpen, setSettingsDrawerOpen] = useState(false);
+  const [groupCreationOpen, setGroupCreationOpen] = useState(false);
+  const [groupSettingsOpen, setGroupSettingsOpen] = useState(false);
+  const [mediaGalleryOpen, setMediaGalleryOpen] = useState(false);
+  const [selectedMediaIndex, setSelectedMediaIndex] = useState(0);
+  const [replyingTo, setReplyingTo] = useState<Message | null>(null);
+  const [editingMessage, setEditingMessage] = useState<{ id: string; text: string } | null>(null);
+  const [showPerformanceMonitor, setShowPerformanceMonitor] = useState(false);
+  const [useVirtualizedList, setUseVirtualizedList] = useState(true);
+  const [darkMode, setDarkMode] = useState(false);
+  const [notificationsEnabled, setNotificationsEnabled] = useState(true);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Initialize conversations on mount
@@ -84,8 +136,10 @@ const ChatPage: React.FC = () => {
         text: newMessage,
         sender: 'me',
         status: 'sent',
+        replyTo: replyingTo?.id,
       });
       setNewMessage('');
+      setReplyingTo(null);
       
       // Simulate response after 2 seconds
       setTimeout(() => {
@@ -125,8 +179,11 @@ const ChatPage: React.FC = () => {
           status: 'sent',
           type: file.type,
           mediaUrl: file.preview,
+          fileName: file.name,
+          replyTo: replyingTo?.id,
         });
       });
+      setReplyingTo(null);
     }
   };
 
@@ -143,9 +200,54 @@ const ChatPage: React.FC = () => {
         status: 'sent',
         type: 'audio',
         mediaUrl: audioUrl,
+        replyTo: replyingTo?.id,
       });
     }
     setShowVoiceRecorder(false);
+    setReplyingTo(null);
+  };
+
+  const handleReply = (message: Message) => {
+    setReplyingTo(message);
+  };
+
+  const handleForward = (message: Message) => {
+    // In a real app, this would open a contact selection dialog
+    console.log('Forwarding message:', message.text);
+  };
+
+  const handleDelete = (messageId: string) => {
+    // In a real app, this would delete the message from the store
+    console.log('Deleting message:', messageId);
+  };
+
+  const handleEdit = (messageId: string, newText: string) => {
+    setEditingMessage({ id: messageId, text: newText });
+  };
+
+  const handleReaction = (messageId: string, emoji: string) => {
+    // In a real app, this would add the reaction to the message
+    console.log('Adding reaction:', emoji, 'to message:', messageId);
+  };
+
+  const handleRemoveReaction = (messageId: string, emoji: string) => {
+    // In a real app, this would remove the reaction from the message
+    console.log('Removing reaction:', emoji, 'from message:', messageId);
+  };
+
+  const handleMediaClick = (mediaMessages: Message[], index: number) => {
+    setSelectedMediaIndex(index);
+    setMediaGalleryOpen(true);
+  };
+
+  const handleGroupCreate = (name: string, participants: string[]) => {
+    // In a real app, this would create a new group conversation
+    console.log('Creating group:', name, 'with participants:', participants);
+    setGroupCreationOpen(false);
+  };
+
+  const handleGroupSettings = () => {
+    setGroupSettingsOpen(true);
   };
 
   const renderMessageContent = (message: Message) => {
@@ -273,14 +375,21 @@ const ChatPage: React.FC = () => {
               open={Boolean(menuAnchor)}
               onClose={() => setMenuAnchor(null)}
             >
+              <MenuItem onClick={() => { setMenuAnchor(null); setGroupCreationOpen(true); }}>
+                <Group sx={{ mr: 1 }} />
+                New Group
+              </MenuItem>
               <MenuItem onClick={() => { setMenuAnchor(null); setMessageSearchOpen(true); }}>
+                <Search sx={{ mr: 1 }} />
                 Search Messages
               </MenuItem>
-              <MenuItem onClick={() => { setMenuAnchor(null); /* Profile logic */ }}>
-                Profile
-              </MenuItem>
-              <MenuItem onClick={() => { setMenuAnchor(null); /* Settings logic */ }}>
+              <MenuItem onClick={() => { setMenuAnchor(null); setSettingsDrawerOpen(true); }}>
+                <Settings sx={{ mr: 1 }} />
                 Settings
+              </MenuItem>
+              <MenuItem onClick={() => { setMenuAnchor(null); setShowPerformanceMonitor(!showPerformanceMonitor); }}>
+                <Info sx={{ mr: 1 }} />
+                Performance Monitor
               </MenuItem>
               <MenuItem onClick={() => { setMenuAnchor(null); logout(); }}>
                 Logout
@@ -313,7 +422,7 @@ const ChatPage: React.FC = () => {
         </Box>
 
         {/* Contacts List */}
-        <List sx={{ flexGrow: 1, overflow: 'auto', p: 0 }}>
+        <List sx={{ flexGrow: 1, overflow: 'auto', p: 0, position: 'relative' }}>
           {filteredContacts.map((conversation) => (
             <ListItemButton
               key={conversation.id}
@@ -388,6 +497,24 @@ const ChatPage: React.FC = () => {
               </Box>
             </ListItemButton>
           ))}
+          
+          {/* Floating Action Button for New Group */}
+          <IconButton
+            sx={{
+              position: 'absolute',
+              bottom: 16,
+              right: 16,
+              bgcolor: '#25D366',
+              color: 'white',
+              '&:hover': {
+                bgcolor: '#128C7E',
+              },
+              boxShadow: 3,
+            }}
+            onClick={() => setGroupCreationOpen(true)}
+          >
+            <Add />
+          </IconButton>
         </List>
       </Box>
 
@@ -399,7 +526,11 @@ const ChatPage: React.FC = () => {
             <AppBar 
               position="static" 
               elevation={1}
-              sx={{ bgcolor: '#f5f5f5', color: 'black' }}
+              sx={{ 
+                bgcolor: '#f5f5f5', 
+                color: 'black',
+                borderBottom: '1px solid #e0e0e0',
+              }}
             >
               <Toolbar>
                 <Avatar
@@ -407,23 +538,56 @@ const ChatPage: React.FC = () => {
                   sx={{ width: 40, height: 40, mr: 2 }}
                 />
                 <Box sx={{ flexGrow: 1 }}>
-                  <Typography variant="subtitle1" fontWeight="medium">
-                    {activeConversation.contact.name}
-                  </Typography>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <Typography variant="subtitle1" fontWeight="medium">
+                      {activeConversation.contact.name}
+                    </Typography>
+                    <ConnectionStatus 
+                      socketConnected={true} 
+                      onlineStatus={navigator.onLine}
+                    />
+                  </Box>
                   <Typography variant="caption" color="text.secondary">
                     {activeConversation.isTyping 
-                      ? 'typing...' 
+                      ? (
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                          <Box
+                            sx={{
+                              display: 'flex',
+                              gap: 0.2,
+                              '& > div': {
+                                width: 4,
+                                height: 4,
+                                borderRadius: '50%',
+                                bgcolor: 'primary.main',
+                                animation: `${typingAnimation} 1.4s infinite ease-in-out`,
+                              },
+                              '& > div:nth-of-type(1)': { animationDelay: '0s' },
+                              '& > div:nth-of-type(2)': { animationDelay: '0.2s' },
+                              '& > div:nth-of-type(3)': { animationDelay: '0.4s' },
+                            }}
+                          >
+                            <div />
+                            <div />
+                            <div />
+                          </Box>
+                          <span>typing...</span>
+                        </Box>
+                      )
                       : activeConversation.contact.isOnline 
                         ? 'Online' 
                         : 'Last seen recently'
                     }
                   </Typography>
                 </Box>
-                <IconButton>
+                <IconButton sx={{ color: 'primary.main' }}>
                   <VideoCall />
                 </IconButton>
-                <IconButton>
+                <IconButton sx={{ color: 'primary.main' }}>
                   <Call />
+                </IconButton>
+                <IconButton onClick={handleGroupSettings}>
+                  <Info />
                 </IconButton>
                 <IconButton>
                   <MoreVert />
@@ -435,59 +599,59 @@ const ChatPage: React.FC = () => {
             <Box
               sx={{
                 flexGrow: 1,
-                overflow: 'auto',
-                p: 2,
-                background: 'linear-gradient(to bottom, #e5ddd5 0%, #e5ddd5 100%)',
+                overflow: 'hidden',
+                background: 'linear-gradient(to bottom, #efeae2 0%, #e5ddd5 100%)',
                 backgroundImage: `
-                  radial-gradient(circle at 25% 25%, rgba(255,255,255,0.2) 2px, transparent 2px),
-                  radial-gradient(circle at 75% 75%, rgba(255,255,255,0.2) 2px, transparent 2px)
+                  url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.03'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")
                 `,
-                backgroundSize: '20px 20px',
+                backgroundSize: '60px 60px',
+                position: 'relative',
               }}
             >
-              {activeConversation.messages.map((message) => (
-                <Fade in={true} key={message.id}>
-                  <Box
-                    sx={{
-                      display: 'flex',
-                      justifyContent: message.sender === 'me' ? 'flex-end' : 'flex-start',
-                      mb: 1,
-                    }}
-                  >
-                    <Box
-                      sx={{
-                        maxWidth: '70%',
-                        p: 1.5,
-                        borderRadius: message.sender === 'me' ? '18px 18px 4px 18px' : '18px 18px 18px 4px',
-                        bgcolor: message.sender === 'me' ? '#dcf8c6' : 'white',
-                        boxShadow: '0 1px 2px rgba(0,0,0,0.1)',
-                        position: 'relative',
-                      }}
-                    >
-                      <Box sx={{ mb: 0.5 }}>
-                        {renderMessageContent(message)}
-                      </Box>
-                      <Typography
-                        variant="caption"
-                        color="text.secondary"
-                        sx={{ display: 'block', textAlign: 'right', fontSize: '0.7rem' }}
-                      >
-                        {formatTime(message.timestamp)}
-                        {message.sender === 'me' && (
-                          <span style={{ marginLeft: 4 }}>
-                            {message.status === 'sent' && '✓'}
-                            {message.status === 'delivered' && '✓✓'}
-                            {message.status === 'read' && (
-                              <span style={{ color: '#25D366' }}>✓✓</span>
-                            )}
-                          </span>
-                        )}
-                      </Typography>
-                    </Box>
-                  </Box>
-                </Fade>
-              ))}
-              <div ref={messagesEndRef} />
+              {useVirtualizedList ? (
+                <VirtualizedMessageList
+                  messages={activeConversation.messages}
+                  currentUserId={user?.id || ''}
+                  senderName={activeConversation.contact.name}
+                  senderAvatar={activeConversation.contact.avatar}
+                  onReply={handleReply}
+                  onForward={handleForward}
+                  onDelete={handleDelete}
+                  onEdit={handleEdit}
+                  onReaction={handleReaction}
+                  onRemoveReaction={handleRemoveReaction}
+                  onMediaClick={handleMediaClick}
+                />
+              ) : (
+                <Box sx={{ p: 1, overflow: 'auto', height: '100%' }}>
+                  {activeConversation.messages.map((message, index) => {
+                    const prevMessage = activeConversation.messages[index - 1];
+                    const isConsecutive = prevMessage && 
+                      prevMessage.sender === message.sender &&
+                      (message.timestamp.getTime() - prevMessage.timestamp.getTime()) < 60000;
+
+                    return (
+                      <MessageBubble
+                        key={message.id}
+                        message={message}
+                        isOwn={message.sender === 'me'}
+                        showAvatar={!isConsecutive}
+                        senderName={activeConversation.contact.name}
+                        senderAvatar={activeConversation.contact.avatar}
+                        currentUserId={user?.id || ''}
+                        isConsecutive={isConsecutive}
+                        onReply={handleReply}
+                        onForward={handleForward}
+                        onDelete={handleDelete}
+                        onEdit={handleEdit}
+                        onReaction={handleReaction}
+                        onRemoveReaction={handleRemoveReaction}
+                      />
+                    );
+                  })}
+                  <div ref={messagesEndRef} />
+                </Box>
+              )}
             </Box>
 
             {/* Message Input */}
@@ -498,6 +662,62 @@ const ChatPage: React.FC = () => {
                 borderTop: '1px solid #e0e0e0',
               }}
             >
+              {/* Reply Preview */}
+              {replyingTo && (
+                <Box
+                  sx={{
+                    mb: 1,
+                    p: 1,
+                    bgcolor: 'rgba(37, 211, 102, 0.1)',
+                    borderLeft: '3px solid #25D366',
+                    borderRadius: 1,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                  }}
+                >
+                  <Box>
+                    <Typography variant="caption" color="primary" fontWeight="medium">
+                      Replying to {replyingTo.sender === 'me' ? 'yourself' : activeConversation?.contact.name}
+                    </Typography>
+                    <Typography variant="body2" sx={{ opacity: 0.8 }}>
+                      {replyingTo.text.length > 50 ? `${replyingTo.text.substring(0, 50)}...` : replyingTo.text}
+                    </Typography>
+                  </Box>
+                  <IconButton size="small" onClick={() => setReplyingTo(null)}>
+                    <Close />
+                  </IconButton>
+                </Box>
+              )}
+
+              {/* Edit Preview */}
+              {editingMessage && (
+                <Box
+                  sx={{
+                    mb: 1,
+                    p: 1,
+                    bgcolor: 'rgba(255, 193, 7, 0.1)',
+                    borderLeft: '3px solid #ffc107',
+                    borderRadius: 1,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                  }}
+                >
+                  <Box>
+                    <Typography variant="caption" color="warning.main" fontWeight="medium">
+                      Editing message
+                    </Typography>
+                    <Typography variant="body2" sx={{ opacity: 0.8 }}>
+                      {editingMessage.text}
+                    </Typography>
+                  </Box>
+                  <IconButton size="small" onClick={() => setEditingMessage(null)}>
+                    <Close />
+                  </IconButton>
+                </Box>
+              )}
+
               {showVoiceRecorder ? (
                 <VoiceRecorder
                   onSend={handleVoiceSend}
@@ -519,9 +739,15 @@ const ChatPage: React.FC = () => {
                     fullWidth
                     multiline
                     maxRows={4}
-                    placeholder="Type a message"
-                    value={newMessage}
-                    onChange={(e) => setNewMessage(e.target.value)}
+                    placeholder={editingMessage ? "Edit your message..." : "Type a message"}
+                    value={editingMessage ? editingMessage.text : newMessage}
+                    onChange={(e) => {
+                      if (editingMessage) {
+                        setEditingMessage({ ...editingMessage, text: e.target.value });
+                      } else {
+                        setNewMessage(e.target.value);
+                      }
+                    }}
                     onKeyPress={handleKeyPress}
                     sx={{
                       '& .MuiOutlinedInput-root': {
@@ -532,7 +758,11 @@ const ChatPage: React.FC = () => {
                   />
                   <IconButton
                     color="primary"
-                    onClick={newMessage.trim() ? handleSendMessage : () => setShowVoiceRecorder(true)}
+                    onClick={editingMessage ? () => {
+                      // Handle edit save
+                      console.log('Saving edit:', editingMessage);
+                      setEditingMessage(null);
+                    } : (newMessage.trim() ? handleSendMessage : () => setShowVoiceRecorder(true))}
                     sx={{
                       bgcolor: '#25D366',
                       color: 'white',
@@ -541,7 +771,7 @@ const ChatPage: React.FC = () => {
                       },
                     }}
                   >
-                    {newMessage.trim() ? <Send /> : <Mic />}
+                    {editingMessage ? <Send /> : (newMessage.trim() ? <Send /> : <Mic />)}
                   </IconButton>
                 </Box>
               )}
@@ -588,6 +818,199 @@ const ChatPage: React.FC = () => {
           // In a real app, you'd scroll to the specific message
         }}
       />
+
+      {/* Settings Drawer */}
+      <Drawer
+        anchor="right"
+        open={settingsDrawerOpen}
+        onClose={() => setSettingsDrawerOpen(false)}
+        PaperProps={{
+          sx: { width: 350 },
+        }}
+      >
+        <Box sx={{ p: 2 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
+            <IconButton onClick={() => setSettingsDrawerOpen(false)}>
+              <Close />
+            </IconButton>
+            <Typography variant="h6" sx={{ ml: 1 }}>
+              Settings
+            </Typography>
+          </Box>
+
+          <Box sx={{ mb: 3 }}>
+            <Typography variant="subtitle1" gutterBottom>
+              Profile
+            </Typography>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
+              <Avatar src={user?.profilePicture} sx={{ width: 60, height: 60 }}>
+                {user?.displayName?.charAt(0)}
+              </Avatar>
+              <Box>
+                <Typography variant="body1" fontWeight="medium">
+                  {user?.displayName}
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  {user?.phoneNumber}
+                </Typography>
+              </Box>
+            </Box>
+          </Box>
+
+          <Divider sx={{ mb: 2 }} />
+
+          <Box sx={{ mb: 3 }}>
+            <Typography variant="subtitle1" gutterBottom>
+              Preferences
+            </Typography>
+            <FormControlLabel
+              control={
+                <Switch
+                  checked={darkMode}
+                  onChange={(e) => setDarkMode(e.target.checked)}
+                />
+              }
+              label="Dark Mode"
+            />
+            <FormControlLabel
+              control={
+                <Switch
+                  checked={notificationsEnabled}
+                  onChange={(e) => setNotificationsEnabled(e.target.checked)}
+                />
+              }
+              label="Notifications"
+            />
+            <FormControlLabel
+              control={
+                <Switch
+                  checked={useVirtualizedList}
+                  onChange={(e) => setUseVirtualizedList(e.target.checked)}
+                />
+              }
+              label="Virtualized Messages (Performance)"
+            />
+          </Box>
+
+          <Divider sx={{ mb: 2 }} />
+
+          <Box sx={{ mb: 3 }}>
+            <Typography variant="subtitle1" gutterBottom>
+              Chat Features
+            </Typography>
+            <Button
+              fullWidth
+              variant="outlined"
+              startIcon={<Group />}
+              onClick={() => {
+                setSettingsDrawerOpen(false);
+                setGroupCreationOpen(true);
+              }}
+              sx={{ mb: 1 }}
+            >
+              Create Group
+            </Button>
+            <Button
+              fullWidth
+              variant="outlined"
+              startIcon={<Archive />}
+              sx={{ mb: 1 }}
+            >
+              Archived Chats
+            </Button>
+            <Button
+              fullWidth
+              variant="outlined"
+              startIcon={<Security />}
+              sx={{ mb: 1 }}
+            >
+              Privacy & Security
+            </Button>
+          </Box>
+
+          <Divider sx={{ mb: 2 }} />
+
+          <Box>
+            <Typography variant="subtitle1" gutterBottom>
+              Support
+            </Typography>
+            <Button
+              fullWidth
+              variant="outlined"
+              startIcon={<Help />}
+              sx={{ mb: 1 }}
+            >
+              Help & Support
+            </Button>
+            <Button
+              fullWidth
+              variant="outlined"
+              startIcon={<Info />}
+              onClick={() => setShowPerformanceMonitor(!showPerformanceMonitor)}
+            >
+              Performance Monitor
+            </Button>
+          </Box>
+        </Box>
+      </Drawer>
+
+      {/* Group Creation Dialog */}
+      <GroupCreationDialog
+        open={groupCreationOpen}
+        onClose={() => setGroupCreationOpen(false)}
+        onCreateGroup={handleGroupCreate}
+        availableContacts={conversations.map(conv => conv.contact)}
+      />
+
+      {/* Group Settings Dialog */}
+      {activeConversation && (
+        <GroupSettingsDialog
+          open={groupSettingsOpen}
+          onClose={() => setGroupSettingsOpen(false)}
+          conversation={activeConversation}
+          currentUserId={user?.id || ''}
+          onUpdateGroup={(updates) => {
+            console.log('Updating group:', updates);
+            setGroupSettingsOpen(false);
+          }}
+          onLeaveGroup={() => {
+            console.log('Leaving group');
+            setGroupSettingsOpen(false);
+          }}
+        />
+      )}
+
+      {/* Media Gallery */}
+      <MediaGallery
+        open={mediaGalleryOpen}
+        onClose={() => setMediaGalleryOpen(false)}
+        mediaItems={activeConversation?.messages.filter(msg => 
+          msg.type && ['image', 'video'].includes(msg.type) && msg.mediaUrl
+        ).map(msg => ({
+          id: msg.id,
+          type: msg.type as 'image' | 'video',
+          url: msg.mediaUrl!,
+          caption: msg.text,
+          timestamp: msg.timestamp,
+        })) || []}
+        initialIndex={selectedMediaIndex}
+        onDownload={(item) => {
+          console.log('Downloading media:', item);
+        }}
+        onShare={(item) => {
+          console.log('Sharing media:', item);
+        }}
+      />
+
+      {/* Performance Monitor */}
+      {showPerformanceMonitor && (
+        <PerformanceMonitor
+          onClose={() => setShowPerformanceMonitor(false)}
+        />
+      )}
+
+      {/* Network Aware Loader */}
+      <NetworkAwareLoader />
     </Box>
   );
 };
