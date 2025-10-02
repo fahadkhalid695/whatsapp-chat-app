@@ -1,350 +1,294 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
+  Dialog,
+  DialogTitle,
+  DialogContent,
   Box,
   TextField,
   InputAdornment,
-  IconButton,
-  Select,
-  MenuItem,
-  FormControl,
-  InputLabel,
-  Chip,
-  Typography,
   List,
   ListItem,
   ListItemText,
-  ListItemAvatar,
+  Typography,
+  Chip,
+  IconButton,
   Avatar,
-  Paper,
-  CircularProgress,
   Divider,
-  Button,
 } from '@mui/material';
 import {
-  Search as SearchIcon,
-  Clear as ClearIcon,
-  FilterList as FilterIcon,
-  Image as ImageIcon,
-  VideoFile as VideoIcon,
-  AudioFile as AudioIcon,
-  InsertDriveFile as DocumentIcon,
-  Message as MessageIcon,
+  Search,
+  Close,
+  Image,
+  VideoLibrary,
+  AudioFile,
+  AttachFile,
 } from '@mui/icons-material';
-import { Message, MessageType } from '../types';
-import { searchMessages, searchInConversation, getMediaMessages } from '../services/api';
-import { formatDistanceToNow } from 'date-fns';
+import { useChatStore, Message } from '../store/chatStore';
 
 interface MessageSearchProps {
-  conversationId?: string;
-  onMessageSelect?: (message: Message) => void;
-  onClose?: () => void;
-}
-
-interface SearchFilters {
-  mediaType?: string;
-  conversationId?: string;
+  open: boolean;
+  onClose: () => void;
+  onMessageSelect: (conversationId: string, messageId: string) => void;
 }
 
 const MessageSearch: React.FC<MessageSearchProps> = ({
-  conversationId,
-  onMessageSelect,
+  open,
   onClose,
+  onMessageSelect,
 }) => {
-  const [query, setQuery] = useState('');
-  const [filters, setFilters] = useState<SearchFilters>({
-    conversationId,
-  });
-  const [results, setResults] = useState<Message[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [hasMore, setHasMore] = useState(false);
-  const [offset, setOffset] = useState(0);
-  const [total, setTotal] = useState(0);
+  const { conversations } = useChatStore();
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<{
+    message: Message;
+    conversationId: string;
+    contactName: string;
+  }[]>([]);
+  const [selectedFilter, setSelectedFilter] = useState<'all' | 'text' | 'image' | 'video' | 'audio' | 'document'>('all');
 
-  const performSearch = useCallback(async (
-    searchQuery: string,
-    searchFilters: SearchFilters,
-    searchOffset: number = 0,
-    append: boolean = false
-  ) => {
-    if (!searchQuery.trim() && !searchFilters.mediaType) {
-      setResults([]);
-      setTotal(0);
-      setHasMore(false);
-      return;
-    }
-
-    setLoading(true);
-    try {
-      let response;
-      
-      if (searchFilters.mediaType === 'media' || 
-          ['image', 'video', 'audio', 'document'].includes(searchFilters.mediaType || '')) {
-        // Use media search endpoint
-        response = await getMediaMessages({
-          conversationId: searchFilters.conversationId,
-          mediaTypes: searchFilters.mediaType === 'media' 
-            ? undefined 
-            : [searchFilters.mediaType as MessageType],
-          limit: 20,
-          offset: searchOffset,
-        });
-      } else if (searchFilters.conversationId) {
-        // Search within conversation
-        response = await searchInConversation(
-          searchFilters.conversationId,
-          searchQuery,
-          searchFilters.mediaType,
-          20,
-          searchOffset
-        );
-      } else {
-        // Global search
-        response = await searchMessages(
-          searchQuery,
-          searchFilters.conversationId,
-          searchFilters.mediaType,
-          20,
-          searchOffset
-        );
-      }
-
-      if (response.success) {
-        const newResults = append ? [...results, ...response.data] : response.data;
-        setResults(newResults);
-        setTotal(response.pagination.total);
-        setHasMore(response.pagination.hasMore);
-      }
-    } catch (error) {
-      console.error('Search error:', error);
-    } finally {
-      setLoading(false);
-    }
-  }, [results]);
-
-  // Debounced search
   useEffect(() => {
-    const timeoutId = setTimeout(() => {
-      setOffset(0);
-      performSearch(query, filters, 0, false);
-    }, 300);
+    if (searchQuery.trim()) {
+      const results: typeof searchResults = [];
+      
+      conversations.forEach((conversation) => {
+        conversation.messages.forEach((message) => {
+          const matchesQuery = message.text.toLowerCase().includes(searchQuery.toLowerCase());
+          const matchesFilter = selectedFilter === 'all' || 
+                               (selectedFilter === 'text' && (!message.type || message.type === 'text')) ||
+                               (selectedFilter !== 'text' && message.type === selectedFilter);
+          
+          if (matchesQuery && matchesFilter) {
+            results.push({
+              message,
+              conversationId: conversation.id,
+              contactName: conversation.contact.name,
+            });
+          }
+        });
+      });
+      
+      // Sort by timestamp (newest first)
+      results.sort((a, b) => b.message.timestamp.getTime() - a.message.timestamp.getTime());
+      setSearchResults(results);
+    } else {
+      setSearchResults([]);
+    }
+  }, [searchQuery, selectedFilter, conversations]);
 
-    return () => clearTimeout(timeoutId);
-  }, [query, filters, performSearch]);
-
-  const handleLoadMore = () => {
-    const newOffset = offset + 20;
-    setOffset(newOffset);
-    performSearch(query, filters, newOffset, true);
+  const handleMessageClick = (conversationId: string, messageId: string) => {
+    onMessageSelect(conversationId, messageId);
+    onClose();
   };
 
-  const handleClearSearch = () => {
-    setQuery('');
-    setResults([]);
-    setTotal(0);
-    setHasMore(false);
-    setOffset(0);
+  const formatTimestamp = (date: Date) => {
+    const now = new Date();
+    const diffInHours = (now.getTime() - date.getTime()) / (1000 * 60 * 60);
+    
+    if (diffInHours < 24) {
+      return date.toLocaleTimeString('en-US', {
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true,
+      });
+    } else if (diffInHours < 24 * 7) {
+      return date.toLocaleDateString('en-US', { weekday: 'short' });
+    } else {
+      return date.toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+      });
+    }
   };
 
-  const handleFilterChange = (filterType: keyof SearchFilters, value: string) => {
-    setFilters(prev => ({
-      ...prev,
-      [filterType]: value || undefined,
-    }));
-    setOffset(0);
-  };
-
-  const getMessageIcon = (type: MessageType) => {
+  const getMessageTypeIcon = (type?: string) => {
     switch (type) {
       case 'image':
-        return <ImageIcon color="primary" />;
+        return <Image fontSize="small" />;
       case 'video':
-        return <VideoIcon color="primary" />;
+        return <VideoLibrary fontSize="small" />;
       case 'audio':
-        return <AudioIcon color="primary" />;
+        return <AudioFile fontSize="small" />;
       case 'document':
-        return <DocumentIcon color="primary" />;
+        return <AttachFile fontSize="small" />;
       default:
-        return <MessageIcon color="primary" />;
+        return null;
     }
   };
 
-  const getMessagePreview = (message: Message) => {
-    if (message.type === 'text' && message.content.text) {
-      return message.content.text.length > 100
-        ? `${message.content.text.substring(0, 100)}...`
-        : message.content.text;
-    } else if (message.content.fileName) {
-      return message.content.fileName;
-    } else {
-      return `${message.type.charAt(0).toUpperCase() + message.type.slice(1)} message`;
-    }
-  };
-
-  const highlightText = (text: string, searchQuery: string) => {
-    if (!searchQuery.trim()) return text;
+  const highlightText = (text: string, query: string) => {
+    if (!query.trim()) return text;
     
-    const regex = new RegExp(`(${searchQuery.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
+    const regex = new RegExp(`(${query})`, 'gi');
     const parts = text.split(regex);
     
-    return parts.map((part, index) => 
+    return parts.map((part, index) =>
       regex.test(part) ? (
-        <mark key={index} style={{ backgroundColor: '#ffeb3b', padding: '0 2px' }}>
+        <span key={index} style={{ backgroundColor: '#ffeb3b', fontWeight: 'bold' }}>
           {part}
-        </mark>
-      ) : part
+        </span>
+      ) : (
+        part
+      )
     );
   };
 
   return (
-    <Paper elevation={2} sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-      {/* Search Header */}
-      <Box sx={{ p: 2, borderBottom: 1, borderColor: 'divider' }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+    <Dialog
+      open={open}
+      onClose={onClose}
+      maxWidth="md"
+      fullWidth
+      PaperProps={{
+        sx: { height: '80vh', borderRadius: 2 }
+      }}
+    >
+      <DialogTitle sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <Typography variant="h6">Search Messages</Typography>
+        <IconButton onClick={onClose}>
+          <Close />
+        </IconButton>
+      </DialogTitle>
+
+      <DialogContent sx={{ p: 0 }}>
+        {/* Search Input */}
+        <Box sx={{ p: 2, borderBottom: '1px solid #e0e0e0' }}>
           <TextField
             fullWidth
-            placeholder={conversationId ? "Search in conversation..." : "Search messages..."}
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search in messages..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
             InputProps={{
               startAdornment: (
                 <InputAdornment position="start">
-                  <SearchIcon />
-                </InputAdornment>
-              ),
-              endAdornment: query && (
-                <InputAdornment position="end">
-                  <IconButton onClick={handleClearSearch} size="small">
-                    <ClearIcon />
-                  </IconButton>
+                  <Search />
                 </InputAdornment>
               ),
             }}
+            sx={{
+              '& .MuiOutlinedInput-root': {
+                borderRadius: 3,
+              },
+            }}
           />
-          {onClose && (
-            <IconButton onClick={onClose}>
-              <ClearIcon />
-            </IconButton>
-          )}
         </Box>
 
-        {/* Filters */}
-        <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', flexWrap: 'wrap' }}>
-          <FormControl size="small" sx={{ minWidth: 120 }}>
-            <InputLabel>Type</InputLabel>
-            <Select
-              value={filters.mediaType || ''}
-              onChange={(e) => handleFilterChange('mediaType', e.target.value)}
-              label="Type"
-            >
-              <MenuItem value="">All</MenuItem>
-              <MenuItem value="text">Text</MenuItem>
-              <MenuItem value="media">Media</MenuItem>
-              <MenuItem value="image">Images</MenuItem>
-              <MenuItem value="video">Videos</MenuItem>
-              <MenuItem value="audio">Audio</MenuItem>
-              <MenuItem value="document">Documents</MenuItem>
-            </Select>
-          </FormControl>
-
-          {filters.mediaType && (
+        {/* Filter Chips */}
+        <Box sx={{ p: 2, display: 'flex', gap: 1, flexWrap: 'wrap', borderBottom: '1px solid #e0e0e0' }}>
+          {[
+            { key: 'all', label: 'All', icon: null },
+            { key: 'text', label: 'Text', icon: null },
+            { key: 'image', label: 'Images', icon: <Image fontSize="small" /> },
+            { key: 'video', label: 'Videos', icon: <VideoLibrary fontSize="small" /> },
+            { key: 'audio', label: 'Audio', icon: <AudioFile fontSize="small" /> },
+            { key: 'document', label: 'Documents', icon: <AttachFile fontSize="small" /> },
+          ].map((filter) => (
             <Chip
-              label={`Type: ${filters.mediaType}`}
-              onDelete={() => handleFilterChange('mediaType', '')}
+              key={filter.key}
+              label={filter.label}
+              icon={filter.icon}
+              onClick={() => setSelectedFilter(filter.key as any)}
+              variant={selectedFilter === filter.key ? 'filled' : 'outlined'}
+              color={selectedFilter === filter.key ? 'primary' : 'default'}
               size="small"
             />
-          )}
+          ))}
         </Box>
-      </Box>
 
-      {/* Search Results */}
-      <Box sx={{ flex: 1, overflow: 'auto' }}>
-        {loading && results.length === 0 && (
-          <Box sx={{ display: 'flex', justifyContent: 'center', p: 3 }}>
-            <CircularProgress />
-          </Box>
-        )}
-
-        {!loading && results.length === 0 && (query || filters.mediaType) && (
-          <Box sx={{ textAlign: 'center', p: 3 }}>
-            <Typography variant="body2" color="text.secondary">
-              No messages found
-            </Typography>
-          </Box>
-        )}
-
-        {!loading && results.length === 0 && !query && !filters.mediaType && (
-          <Box sx={{ textAlign: 'center', p: 3 }}>
-            <Typography variant="body2" color="text.secondary">
-              Enter a search term or select a filter to find messages
-            </Typography>
-          </Box>
-        )}
-
-        {results.length > 0 && (
-          <>
-            <Box sx={{ p: 2, borderBottom: 1, borderColor: 'divider' }}>
-              <Typography variant="body2" color="text.secondary">
-                {total} message{total !== 1 ? 's' : ''} found
+        {/* Search Results */}
+        <Box sx={{ height: 'calc(100% - 140px)', overflow: 'auto' }}>
+          {searchQuery.trim() === '' ? (
+            <Box
+              sx={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                height: '100%',
+                flexDirection: 'column',
+                color: 'text.secondary',
+              }}
+            >
+              <Search sx={{ fontSize: 48, mb: 2 }} />
+              <Typography variant="h6" gutterBottom>
+                Search Messages
+              </Typography>
+              <Typography variant="body2" textAlign="center">
+                Type in the search box to find messages across all conversations
               </Typography>
             </Box>
-
-            <List>
-              {results.map((message, index) => (
-                <React.Fragment key={message.id}>
+          ) : searchResults.length === 0 ? (
+            <Box
+              sx={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                height: '100%',
+                flexDirection: 'column',
+                color: 'text.secondary',
+              }}
+            >
+              <Typography variant="h6" gutterBottom>
+                No messages found
+              </Typography>
+              <Typography variant="body2">
+                Try different keywords or check your spelling
+              </Typography>
+            </Box>
+          ) : (
+            <List sx={{ p: 0 }}>
+              {searchResults.map((result, index) => (
+                <React.Fragment key={`${result.conversationId}-${result.message.id}`}>
                   <ListItem
                     button
-                    onClick={() => onMessageSelect?.(message)}
-                    sx={{ alignItems: 'flex-start' }}
+                    onClick={() => handleMessageClick(result.conversationId, result.message.id)}
+                    sx={{
+                      py: 2,
+                      '&:hover': {
+                        bgcolor: '#f5f5f5',
+                      },
+                    }}
                   >
-                    <ListItemAvatar>
-                      <Avatar sx={{ bgcolor: 'primary.main' }}>
-                        {getMessageIcon(message.type)}
-                      </Avatar>
-                    </ListItemAvatar>
+                    <Avatar
+                      src={conversations.find(c => c.id === result.conversationId)?.contact.avatar}
+                      sx={{ mr: 2 }}
+                    >
+                      {result.contactName.charAt(0)}
+                    </Avatar>
+                    
                     <ListItemText
                       primary={
-                        <Box>
-                          <Typography variant="body2" component="div">
-                            {highlightText(getMessagePreview(message), query)}
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
+                          <Typography variant="subtitle2" fontWeight="medium">
+                            {result.contactName}
                           </Typography>
-                          {(message as any).searchContext && (
-                            <Typography variant="caption" color="text.secondary">
-                              {(message as any).searchContext.conversationType === 'group' 
-                                ? (message as any).searchContext.conversationName 
-                                : (message as any).searchContext.senderName}
-                              {' • '}
-                              {(message as any).searchContext.senderName}
-                            </Typography>
-                          )}
+                          {getMessageTypeIcon(result.message.type)}
+                          <Typography variant="caption" color="text.secondary">
+                            {formatTimestamp(result.message.timestamp)}
+                          </Typography>
                         </Box>
                       }
                       secondary={
-                        <Typography variant="caption" color="text.secondary">
-                          {formatDistanceToNow(new Date(message.timestamp), { addSuffix: true })}
+                        <Typography
+                          variant="body2"
+                          color="text.secondary"
+                          sx={{
+                            display: '-webkit-box',
+                            WebkitLineClamp: 2,
+                            WebkitBoxOrient: 'vertical',
+                            overflow: 'hidden',
+                          }}
+                        >
+                          {highlightText(result.message.text, searchQuery)}
                         </Typography>
                       }
                     />
                   </ListItem>
-                  {index < results.length - 1 && <Divider />}
+                  {index < searchResults.length - 1 && <Divider />}
                 </React.Fragment>
               ))}
             </List>
-
-            {hasMore && (
-              <Box sx={{ p: 2, textAlign: 'center' }}>
-                <Button
-                  onClick={handleLoadMore}
-                  disabled={loading}
-                  startIcon={loading ? <CircularProgress size={16} /> : undefined}
-                >
-                  {loading ? 'Loading...' : 'Load More'}
-                </Button>
-              </Box>
-            )}
-          </>
-        )}
-      </Box>
-    </Paper>
+          )}
+        </Box>
+      </DialogContent>
+    </Dialog>
   );
 };
 

@@ -17,6 +17,8 @@ import {
   MenuItem,
   Chip,
   Fade,
+  Card,
+  CardMedia,
 } from '@mui/material';
 import {
   Search,
@@ -27,9 +29,16 @@ import {
   Mic,
   VideoCall,
   Call,
+  PlayArrow,
+  Pause,
+  VolumeUp,
 } from '@mui/icons-material';
 import { useAuthStore } from '../store/authStore';
 import { useChatStore, Message, Contact } from '../store/chatStore';
+import MediaUpload from '../components/MediaUpload';
+import EmojiPicker from '../components/EmojiPicker';
+import VoiceRecorder from '../components/VoiceRecorder';
+import MessageSearch from '../components/MessageSearch';
 
 const ChatPage: React.FC = () => {
   const { user, logout } = useAuthStore();
@@ -45,6 +54,10 @@ const ChatPage: React.FC = () => {
   
   const [newMessage, setNewMessage] = useState('');
   const [menuAnchor, setMenuAnchor] = useState<null | HTMLElement>(null);
+  const [mediaUploadOpen, setMediaUploadOpen] = useState(false);
+  const [emojiAnchor, setEmojiAnchor] = useState<null | HTMLElement>(null);
+  const [showVoiceRecorder, setShowVoiceRecorder] = useState(false);
+  const [messageSearchOpen, setMessageSearchOpen] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Initialize conversations on mount
@@ -102,6 +115,114 @@ const ChatPage: React.FC = () => {
     }
   };
 
+  const handleMediaSend = (files: any[], caption: string) => {
+    if (activeConversationId) {
+      files.forEach((file) => {
+        const messageText = caption || `Shared ${file.type}`;
+        addMessage(activeConversationId, {
+          text: messageText,
+          sender: 'me',
+          status: 'sent',
+          type: file.type,
+          mediaUrl: file.preview,
+        });
+      });
+    }
+  };
+
+  const handleEmojiSelect = (emoji: string) => {
+    setNewMessage(prev => prev + emoji);
+  };
+
+  const handleVoiceSend = (audioBlob: Blob, duration: number) => {
+    if (activeConversationId) {
+      const audioUrl = URL.createObjectURL(audioBlob);
+      addMessage(activeConversationId, {
+        text: `Voice message (${Math.floor(duration / 60)}:${(duration % 60).toString().padStart(2, '0')})`,
+        sender: 'me',
+        status: 'sent',
+        type: 'audio',
+        mediaUrl: audioUrl,
+      });
+    }
+    setShowVoiceRecorder(false);
+  };
+
+  const renderMessageContent = (message: Message) => {
+    if (message.type === 'image' && message.mediaUrl) {
+      return (
+        <Box>
+          <Card sx={{ maxWidth: 300, mb: 1 }}>
+            <CardMedia
+              component="img"
+              image={message.mediaUrl}
+              alt="Shared image"
+              sx={{ maxHeight: 200, objectFit: 'cover' }}
+            />
+          </Card>
+          {message.text && (
+            <Typography variant="body1">{message.text}</Typography>
+          )}
+        </Box>
+      );
+    }
+
+    if (message.type === 'video' && message.mediaUrl) {
+      return (
+        <Box>
+          <Card sx={{ maxWidth: 300, mb: 1 }}>
+            <CardMedia
+              component="video"
+              src={message.mediaUrl}
+              controls
+              sx={{ maxHeight: 200 }}
+            />
+          </Card>
+          {message.text && (
+            <Typography variant="body1">{message.text}</Typography>
+          )}
+        </Box>
+      );
+    }
+
+    if (message.type === 'audio' && message.mediaUrl) {
+      return (
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: 200 }}>
+          <IconButton size="small" sx={{ color: '#25D366' }}>
+            <VolumeUp />
+          </IconButton>
+          <Box sx={{ flexGrow: 1 }}>
+            <Typography variant="body2">{message.text}</Typography>
+            <Box
+              sx={{
+                height: 2,
+                bgcolor: '#e0e0e0',
+                borderRadius: 1,
+                mt: 0.5,
+                position: 'relative',
+              }}
+            >
+              <Box
+                sx={{
+                  height: '100%',
+                  width: '30%',
+                  bgcolor: '#25D366',
+                  borderRadius: 1,
+                }}
+              />
+            </Box>
+          </Box>
+        </Box>
+      );
+    }
+
+    return (
+      <Typography variant="body1" sx={{ wordBreak: 'break-word' }}>
+        {message.text}
+      </Typography>
+    );
+  };
+
   const formatTime = (date: Date) => {
     return date.toLocaleTimeString('en-US', {
       hour: 'numeric',
@@ -152,6 +273,9 @@ const ChatPage: React.FC = () => {
               open={Boolean(menuAnchor)}
               onClose={() => setMenuAnchor(null)}
             >
+              <MenuItem onClick={() => { setMenuAnchor(null); setMessageSearchOpen(true); }}>
+                Search Messages
+              </MenuItem>
               <MenuItem onClick={() => { setMenuAnchor(null); /* Profile logic */ }}>
                 Profile
               </MenuItem>
@@ -340,9 +464,9 @@ const ChatPage: React.FC = () => {
                         position: 'relative',
                       }}
                     >
-                      <Typography variant="body1" sx={{ mb: 0.5, wordBreak: 'break-word' }}>
-                        {message.text}
-                      </Typography>
+                      <Box sx={{ mb: 0.5 }}>
+                        {renderMessageContent(message)}
+                      </Box>
                       <Typography
                         variant="caption"
                         color="text.secondary"
@@ -374,46 +498,53 @@ const ChatPage: React.FC = () => {
                 borderTop: '1px solid #e0e0e0',
               }}
             >
-              <Box sx={{ display: 'flex', alignItems: 'flex-end', gap: 1 }}>
-                <IconButton>
-                  <EmojiEmotions />
-                </IconButton>
-                <IconButton>
-                  <AttachFile />
-                </IconButton>
-                <TextField
-                  fullWidth
-                  multiline
-                  maxRows={4}
-                  placeholder="Type a message"
-                  value={newMessage}
-                  onChange={(e) => setNewMessage(e.target.value)}
-                  onKeyPress={handleKeyPress}
-                  sx={{
-                    '& .MuiOutlinedInput-root': {
-                      borderRadius: 3,
-                      bgcolor: 'white',
-                    },
-                  }}
+              {showVoiceRecorder ? (
+                <VoiceRecorder
+                  onSend={handleVoiceSend}
+                  onCancel={() => setShowVoiceRecorder(false)}
                 />
-                <IconButton
-                  color="primary"
-                  onClick={handleSendMessage}
-                  disabled={!newMessage.trim()}
-                  sx={{
-                    bgcolor: '#25D366',
-                    color: 'white',
-                    '&:hover': {
-                      bgcolor: '#128C7E',
-                    },
-                    '&:disabled': {
-                      bgcolor: '#e0e0e0',
-                    },
-                  }}
-                >
-                  {newMessage.trim() ? <Send /> : <Mic />}
-                </IconButton>
-              </Box>
+              ) : (
+                <Box sx={{ display: 'flex', alignItems: 'flex-end', gap: 1 }}>
+                  <IconButton
+                    onClick={(e) => setEmojiAnchor(e.currentTarget)}
+                  >
+                    <EmojiEmotions />
+                  </IconButton>
+                  <IconButton
+                    onClick={() => setMediaUploadOpen(true)}
+                  >
+                    <AttachFile />
+                  </IconButton>
+                  <TextField
+                    fullWidth
+                    multiline
+                    maxRows={4}
+                    placeholder="Type a message"
+                    value={newMessage}
+                    onChange={(e) => setNewMessage(e.target.value)}
+                    onKeyPress={handleKeyPress}
+                    sx={{
+                      '& .MuiOutlinedInput-root': {
+                        borderRadius: 3,
+                        bgcolor: 'white',
+                      },
+                    }}
+                  />
+                  <IconButton
+                    color="primary"
+                    onClick={newMessage.trim() ? handleSendMessage : () => setShowVoiceRecorder(true)}
+                    sx={{
+                      bgcolor: '#25D366',
+                      color: 'white',
+                      '&:hover': {
+                        bgcolor: '#128C7E',
+                      },
+                    }}
+                  >
+                    {newMessage.trim() ? <Send /> : <Mic />}
+                  </IconButton>
+                </Box>
+              )}
             </Box>
           </>
         ) : (
@@ -432,6 +563,31 @@ const ChatPage: React.FC = () => {
           </Box>
         )}
       </Box>
+
+      {/* Media Upload Dialog */}
+      <MediaUpload
+        open={mediaUploadOpen}
+        onClose={() => setMediaUploadOpen(false)}
+        onSend={handleMediaSend}
+      />
+
+      {/* Emoji Picker */}
+      <EmojiPicker
+        anchorEl={emojiAnchor}
+        open={Boolean(emojiAnchor)}
+        onClose={() => setEmojiAnchor(null)}
+        onEmojiSelect={handleEmojiSelect}
+      />
+
+      {/* Message Search */}
+      <MessageSearch
+        open={messageSearchOpen}
+        onClose={() => setMessageSearchOpen(false)}
+        onMessageSelect={(conversationId, messageId) => {
+          setActiveConversation(conversationId);
+          // In a real app, you'd scroll to the specific message
+        }}
+      />
     </Box>
   );
 };

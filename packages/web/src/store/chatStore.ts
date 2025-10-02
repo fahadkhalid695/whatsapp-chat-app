@@ -6,9 +6,10 @@ export interface Message {
   sender: 'me' | 'other';
   timestamp: Date;
   status?: 'sent' | 'delivered' | 'read';
-  type?: 'text' | 'image' | 'file' | 'audio';
+  type?: 'text' | 'image' | 'video' | 'audio' | 'document';
   mediaUrl?: string;
   fileName?: string;
+  reactions?: { emoji: string; users: string[] }[];
 }
 
 export interface Contact {
