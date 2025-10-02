@@ -15,7 +15,8 @@ class SocketService {
     if (!token) return;
 
     // Use environment variable or fallback to localhost
-    const SOCKET_URL = process.env.REACT_APP_WS_URL || 'ws://localhost:3001';
+    // Note: React Native doesn't use REACT_APP prefix, use WS_URL instead
+    const SOCKET_URL = process.env.WS_URL || 'ws://10.0.2.2:3001'; // 10.0.2.2 for Android emulator
     
     this.socket = io(SOCKET_URL, {
       auth: { token },

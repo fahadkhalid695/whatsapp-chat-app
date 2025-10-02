@@ -148,7 +148,6 @@ export class AuthService {
    * Find user by phone number
    */
   private static async findUserByPhoneNumber(phoneNumber: string): Promise<User | null> {
-    
     try {
       const result = await db.query(
         'SELECT * FROM users WHERE phone_number = $1',
@@ -217,7 +216,6 @@ export class AuthService {
    * Update user's last seen timestamp
    */
   private static async updateUserLastSeen(userId: string): Promise<User> {
-    
     try {
       const result = await db.query(
         `UPDATE users 
