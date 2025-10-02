@@ -15,13 +15,13 @@ export class JWTUtils {
       phoneNumber,
     };
 
-    const accessToken = jwt.sign(payload, config.jwt.secret, {
+    const accessToken = jwt.sign(payload, config.jwt.secret as string, {
       expiresIn: config.jwt.expiresIn,
-    });
+    } as any);
 
-    const refreshToken = jwt.sign(payload, config.jwt.refreshSecret, {
+    const refreshToken = jwt.sign(payload, config.jwt.refreshSecret as string, {
       expiresIn: config.jwt.refreshExpiresIn,
-    });
+    } as any);
 
     return {
       accessToken,
@@ -62,9 +62,9 @@ export class JWTUtils {
       phoneNumber: payload.phoneNumber,
     };
 
-    return jwt.sign(newPayload, config.jwt.secret, {
+    return jwt.sign(newPayload, config.jwt.secret as string, {
       expiresIn: config.jwt.expiresIn,
-    });
+    } as any);
   }
 
   /**

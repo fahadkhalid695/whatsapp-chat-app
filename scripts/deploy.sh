@@ -4,7 +4,7 @@
 set -e
 
 # Configuration
-ENVIRONMENT=${1:-production}
+ENVIRONMENT=${1:-prod}
 COMPOSE_FILE="docker-compose.${ENVIRONMENT}.yml"
 BACKUP_DIR="/opt/backups/$(date +%Y%m%d_%H%M%S)"
 

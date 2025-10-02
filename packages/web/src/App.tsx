@@ -8,7 +8,7 @@ import LoginPage from './pages/LoginPage';
 import VerificationPage from './pages/VerificationPage';
 import ProfileSetupPage from './pages/ProfileSetupPage';
 import ChatPage from './pages/ChatPage';
-import PerformanceMonitor from './components/PerformanceMonitor';
+// import PerformanceMonitor from './components/PerformanceMonitor';
 
 const theme = createTheme({
   palette: {
@@ -101,7 +101,7 @@ const App: React.FC = () => {
             element={<Navigate to={isAuthenticated ? "/chat" : "/login"} replace />} 
           />
         </Routes>
-        <PerformanceMonitor />
+        {/* <PerformanceMonitor /> */}
       </Router>
     </ThemeProvider>
   );

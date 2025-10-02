@@ -219,7 +219,7 @@ const GroupCreationDialog: React.FC<GroupCreationDialogProps> = ({
           {selectedParticipants.map(participantId => (
             <ListItem key={participantId}>
               <ListItemAvatar>
-                <Avatar size="small">
+                <Avatar sx={{ width: 32, height: 32 }}>
                   <Person />
                 </Avatar>
               </ListItemAvatar>

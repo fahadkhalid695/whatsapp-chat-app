@@ -53,57 +53,41 @@ whatsapp-chat-app/
 
 ## 🚀 Quick Start
 
-### Development Setup
+### One-Command Setup
+```bash
+git clone <repository-url>
+cd whatsapp-chat-app
+./scripts/complete-setup.sh
+```
 
-1. **Clone and install dependencies:**
-   ```bash
-   git clone <repository-url>
-   cd whatsapp-chat-app
-   npm install
-   ```
+### Start the Application
+```bash
+# Terminal 1: Start database services (optional)
+./scripts/start-dev.sh
 
-2. **Set up environment variables:**
-   ```bash
-   cp .env.example .env
-   cp packages/backend/.env.example packages/backend/.env
-   cp packages/web/.env.example packages/web/.env
-   ```
+# Terminal 2: Start backend
+./scripts/start-backend.sh
 
-3. **Start development environment with Docker:**
-   ```bash
-   npm run docker:up
-   ```
+# Terminal 3: Start web app
+./scripts/start-web.sh
+```
 
-4. **Or start services individually:**
-   ```bash
-   # Start all services
-   npm run dev
+### Access the Application
+- **Web App**: http://localhost:3000
+- **Backend API**: http://localhost:3001
+- **Health Check**: http://localhost:3001/health
 
-   # Or start individual services
-   npm run dev:backend
-   npm run dev:web
-   npm run dev:mobile
-   ```
+📖 **For detailed setup instructions, see [GETTING_STARTED.md](GETTING_STARTED.md)**
 
 ### Production Deployment
 
-1. **Configure production environment:**
-   ```bash
-   cp .env.production.example .env.production
-   # Edit .env.production with your actual values
-   ```
+For production deployment:
+```bash
+npm run deploy:production
+npm run monitoring:setup
+```
 
-2. **Deploy to production:**
-   ```bash
-   npm run deploy:production
-   ```
-
-3. **Set up monitoring:**
-   ```bash
-   npm run monitoring:setup
-   ```
-
-For detailed deployment instructions, see [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
+📚 **For complete deployment guide, see [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)**
 
 ## 🏗️ Architecture
 

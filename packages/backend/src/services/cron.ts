@@ -1,6 +1,7 @@
 import * as cron from 'node-cron';
 import { SecurityService } from './security';
 import { logger } from '../utils/logger';
+import { db } from '../database/connection';
 
 export class CronService {
   private static jobs: Map<string, cron.ScheduledTask> = new Map();
@@ -9,6 +10,12 @@ export class CronService {
    * Start all cron jobs
    */
   static startAll(): void {
+    // Only start cron jobs if database is connected
+    if (!db.getPoolInfo().isConnected) {
+      logger.warn('Database not connected. Cron jobs will not be started.');
+      return;
+    }
+
     this.startExpiredMessagesCleanup();
     logger.info('All cron jobs started');
   }
@@ -23,6 +30,23 @@ export class CronService {
     });
     this.jobs.clear();
     logger.info('All cron jobs stopped');
+  }
+
+  /**
+   * Check if cron jobs are running
+   */
+  static isRunning(): boolean {
+    return this.jobs.size > 0;
+  }
+
+  /**
+   * Start cron jobs if database becomes available
+   */
+  static startIfDatabaseAvailable(): void {
+    if (db.getPoolInfo().isConnected && !this.isRunning()) {
+      logger.info('Database is now available. Starting cron jobs...');
+      this.startAll();
+    }
   }
 
   /**

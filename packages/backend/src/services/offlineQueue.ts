@@ -11,6 +11,12 @@ export class OfflineQueueService {
    * Initialize the offline queue service
    */
   static initialize(): void {
+    // Only initialize if database is connected
+    if (!db.getPoolInfo().isConnected) {
+      console.warn('Database not connected. Offline queue service will not be initialized.');
+      return;
+    }
+
     // Process retry queue every 30 seconds
     this.retryInterval = setInterval(() => {
       this.processRetryQueue();
@@ -27,6 +33,12 @@ export class OfflineQueueService {
     maxAttempts: number = 3
   ): Promise<void> {
     try {
+      // Check if database is connected
+      if (!db.getPoolInfo().isConnected) {
+        console.warn('Database not connected. Cannot queue offline message.');
+        return;
+      }
+
       await db.query(
         `INSERT INTO offline_messages (user_id, device_id, message_data, max_attempts, next_retry)
          VALUES ($1, $2, $3, $4, NOW())`,
@@ -120,6 +132,11 @@ export class OfflineQueueService {
    */
   private static async processRetryQueue(): Promise<void> {
     try {
+      // Check if database is connected
+      if (!db.getPoolInfo().isConnected) {
+        return;
+      }
+
       const retryQuery = `
         SELECT * FROM offline_messages 
         WHERE delivered_at IS NULL 

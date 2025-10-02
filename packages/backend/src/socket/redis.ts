@@ -28,6 +28,17 @@ class RedisClient {
   }
 
   private setupErrorHandlers() {
+    this.client.on('error', (err) => {
+      console.error('Redis Client Error:', err);
+    });
+
+    this.subscriber.on('error', (err) => {
+      console.error('Redis Subscriber Error:', err);
+    });
+
+    this.publisher.on('error', (err) => {
+      console.error('Redis Publisher Error:', err);
+    });
     this.client.on('error', (err) => console.error('Redis Client Error:', err));
     this.subscriber.on('error', (err) => console.error('Redis Subscriber Error:', err));
     this.publisher.on('error', (err) => console.error('Redis Publisher Error:', err));
@@ -245,6 +256,10 @@ class RedisClient {
 
   async exists(key: string): Promise<boolean> {
     return (await this.client.exists(key)) === 1;
+  }
+
+  async ping(): Promise<string> {
+    return await this.client.ping();
   }
 
   // Expose client for advanced operations (use carefully)

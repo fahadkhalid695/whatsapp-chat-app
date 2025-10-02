@@ -128,26 +128,80 @@ app.use((err: any, _req: express.Request, res: express.Response, _next: express.
 // Initialize services
 async function startServer() {
   try {
-    // Connect to database
-    await db.connect();
+    // Connect to database (optional for development)
+    try {
+      await db.connect();
+      logger.info('✅ Database connected successfully');
+      
+      // Start cron jobs and notification processors now that database is available
+      setTimeout(() => {
+        CronService.startIfDatabaseAvailable();
+        
+        // Start notification processors if they weren't started during initialization
+        try {
+          const notificationService = require('./services/notification').getNotificationService();
+          if (notificationService) {
+            notificationService.startProcessorsIfDatabaseAvailable();
+          }
+        } catch (error) {
+          // Notification service might not be initialized yet
+        }
+      }, 1000);
+    } catch (error) {
+      logger.warn('⚠️  Database connection failed. Some features may not work:', error.message);
+    }
     
-    // Connect to Redis
-    await redisClient.connect();
+    // Connect to Redis (optional for development)
+    try {
+      await redisClient.connect();
+      logger.info('✅ Redis connected successfully');
+    } catch (error) {
+      logger.warn('⚠️  Redis connection failed. Real-time features may not work:', error.message);
+    }
     
-    // Initialize notification service
-    createNotificationService();
+    // Initialize notification service (optional)
+    try {
+      createNotificationService();
+      logger.info('✅ Notification service initialized');
+    } catch (error) {
+      logger.warn('⚠️  Notification service failed to initialize:', error.message);
+    }
     
     // Initialize Socket.io server
-    initializeSocketServer(httpServer);
+    try {
+      initializeSocketServer(httpServer);
+      logger.info('✅ Socket.io server initialized');
+    } catch (error) {
+      logger.warn('⚠️  Socket.io initialization failed:', error.message);
+    }
     
-    // Set up typing cleanup
-    setupTypingCleanup();
+    // Set up typing cleanup (optional)
+    try {
+      setupTypingCleanup();
+      logger.info('✅ Typing cleanup initialized');
+    } catch (error) {
+      logger.warn('⚠️  Typing cleanup failed to initialize:', error.message);
+    }
     
-    // Start cron jobs
-    CronService.startAll();
+    // Start cron jobs (optional, only if database is available)
+    try {
+      CronService.startAll();
+      if (CronService.isRunning()) {
+        logger.info('✅ Cron jobs started');
+      } else {
+        logger.info('⏳ Cron jobs will start when database becomes available');
+      }
+    } catch (error) {
+      logger.warn('⚠️  Cron jobs failed to start:', error.message);
+    }
     
-    // Initialize offline queue service
-    OfflineQueueService.initialize();
+    // Initialize offline queue service (optional)
+    try {
+      OfflineQueueService.initialize();
+      logger.info('✅ Offline queue service initialized');
+    } catch (error) {
+      logger.warn('⚠️  Offline queue service failed to initialize:', error.message);
+    }
     
     // Start HTTP server
     const PORT = config.server.port;

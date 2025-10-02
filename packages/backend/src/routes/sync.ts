@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { SyncService } from '../services/sync';
 import { OfflineQueueService } from '../services/offlineQueue';
-import { authMiddleware } from '../middleware/auth';
+import { authenticateToken } from '../middleware/auth';
 import { 
   SyncConversationHistoryRequest,
   RegisterDeviceSessionRequest,
@@ -12,7 +12,7 @@ import {
 const router = Router();
 
 // Apply authentication middleware to all sync routes
-router.use(authMiddleware);
+router.use(authenticateToken);
 
 /**
  * Register a new device session

@@ -497,6 +497,12 @@ export class SecurityService {
    */
   static async deleteExpiredMessages(): Promise<number> {
     try {
+      // Check if database is connected
+      if (!db.getPoolInfo().isConnected) {
+        logger.warn('Database not connected. Skipping expired messages cleanup.');
+        return 0;
+      }
+
       await db.query('SELECT delete_expired_messages()');
       
       // Get count of deleted messages

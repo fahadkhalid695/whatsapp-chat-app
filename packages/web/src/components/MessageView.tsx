@@ -6,7 +6,7 @@ import {
   useMediaQuery,
 } from '@mui/material';
 import MessageBubble from './MessageBubble';
-import VirtualizedMessageList from './VirtualizedMessageList';
+import SimpleMessageList from './SimpleMessageList';
 import NetworkAwareLoader from './NetworkAwareLoader';
 import { Conversation, Message } from '../types';
 import { useAuthStore } from '../store/authStore';
@@ -156,7 +156,7 @@ const MessageView: React.FC<MessageViewProps> = ({
         errorText="Failed to load messages"
       >
         {useVirtualScrolling ? (
-          <VirtualizedMessageList
+          <SimpleMessageList
             messages={messages}
             height={containerHeight}
             onLoadMore={onLoadMore}

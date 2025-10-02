@@ -6,26 +6,32 @@ import { logger } from '../utils/logger';
 // Initialize Firebase Admin SDK
 if (!admin.apps.length) {
   try {
-    const serviceAccount = {
-      type: 'service_account',
-      project_id: config.firebase.projectId,
-      private_key_id: config.firebase.privateKeyId,
-      private_key: config.firebase.privateKey,
-      client_email: config.firebase.clientEmail,
-      client_id: config.firebase.clientId,
-      auth_uri: config.firebase.authUri,
-      token_uri: config.firebase.tokenUri,
-      auth_provider_x509_cert_url: config.firebase.authProviderX509CertUrl,
-      client_x509_cert_url: config.firebase.clientX509CertUrl,
-    };
+    // Check if Firebase configuration is available
+    if (!config.firebase.projectId || !config.firebase.privateKey || !config.firebase.clientEmail) {
+      logger.warn('Firebase configuration is incomplete. Push notifications will be disabled.');
+    } else {
+      const serviceAccount = {
+        type: 'service_account',
+        project_id: config.firebase.projectId,
+        private_key_id: config.firebase.privateKeyId,
+        private_key: config.firebase.privateKey,
+        client_email: config.firebase.clientEmail,
+        client_id: config.firebase.clientId,
+        auth_uri: config.firebase.authUri,
+        token_uri: config.firebase.tokenUri,
+        auth_provider_x509_cert_url: config.firebase.authProviderX509CertUrl,
+        client_x509_cert_url: config.firebase.clientX509CertUrl,
+      };
 
-    admin.initializeApp({
-      credential: admin.credential.cert(serviceAccount as admin.ServiceAccount),
-    });
-    
-    logger.info('Firebase Admin SDK initialized successfully');
+      admin.initializeApp({
+        credential: admin.credential.cert(serviceAccount as admin.ServiceAccount),
+      });
+      
+      logger.info('Firebase Admin SDK initialized successfully');
+    }
   } catch (error) {
     logger.error('Failed to initialize Firebase Admin SDK:', error);
+    logger.warn('Push notifications will be disabled.');
   }
 }
 
@@ -96,13 +102,28 @@ export class NotificationService {
   private retryProcessor: NodeJS.Timeout | null = null;
 
   constructor() {
-    this.startBatchProcessor();
-    this.startRetryProcessor();
+    // Only start processors if database is connected
+    if (this.isDatabaseConnected()) {
+      this.startBatchProcessor();
+      this.startRetryProcessor();
+      logger.info('Notification processors started');
+    } else {
+      logger.warn('Database not connected. Notification processors will not be started.');
+    }
+  }
+
+  private isDatabaseConnected(): boolean {
+    return db.getPoolInfo().isConnected;
   }
 
   // Device token management
   async registerDeviceToken(userId: string, token: string, platform: 'web' | 'android' | 'ios'): Promise<void> {
     try {
+      if (!this.isDatabaseConnected()) {
+        logger.warn('Database not connected. Cannot register device token.');
+        return;
+      }
+
       await db.query(
         `INSERT INTO device_tokens (user_id, token, platform) 
          VALUES ($1, $2, $3) 
@@ -120,6 +141,11 @@ export class NotificationService {
 
   async removeDeviceToken(userId: string, token: string): Promise<void> {
     try {
+      if (!this.isDatabaseConnected()) {
+        logger.warn('Database not connected. Cannot remove device token.');
+        return;
+      }
+
       await db.query(
         'UPDATE device_tokens SET is_active = false WHERE user_id = $1 AND token = $2',
         [userId, token]
@@ -134,6 +160,11 @@ export class NotificationService {
 
   async getUserDeviceTokens(userId: string): Promise<DeviceToken[]> {
     try {
+      if (!this.isDatabaseConnected()) {
+        logger.warn('Database not connected. Cannot get device tokens.');
+        return [];
+      }
+
       const result = await db.query(
         'SELECT * FROM device_tokens WHERE user_id = $1 AND is_active = true',
         [userId]
@@ -157,6 +188,11 @@ export class NotificationService {
   // Notification preferences management
   async getNotificationPreferences(userId: string): Promise<NotificationPreferences | null> {
     try {
+      if (!this.isDatabaseConnected()) {
+        logger.warn('Database not connected. Cannot get notification preferences.');
+        return null;
+      }
+
       const result = await db.query(
         'SELECT * FROM notification_preferences WHERE user_id = $1',
         [userId]
@@ -491,6 +527,15 @@ export class NotificationService {
     }
   }
 
+  // Start processors when database becomes available
+  public startProcessorsIfDatabaseAvailable(): void {
+    if (this.isDatabaseConnected() && !this.batchProcessor && !this.retryProcessor) {
+      logger.info('Database is now available. Starting notification processors...');
+      this.startBatchProcessor();
+      this.startRetryProcessor();
+    }
+  }
+
   // Batch processing
   private startBatchProcessor(): void {
     this.batchProcessor = setInterval(async () => {
@@ -500,6 +545,10 @@ export class NotificationService {
 
   private async processBatchedNotifications(): Promise<void> {
     try {
+      if (!this.isDatabaseConnected()) {
+        return;
+      }
+
       const result = await db.query(
         `SELECT * FROM notification_queue 
          WHERE status = 'pending' AND scheduled_for <= NOW()
@@ -649,6 +698,10 @@ export class NotificationService {
 
   private async processRetryNotifications(): Promise<void> {
     try {
+      if (!this.isDatabaseConnected()) {
+        return;
+      }
+
       const result = await db.query(
         `SELECT * FROM notification_queue 
          WHERE status = 'pending' AND attempts > 0 AND scheduled_for <= NOW()

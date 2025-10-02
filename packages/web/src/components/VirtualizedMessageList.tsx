@@ -1,5 +1,6 @@
 import React, { useMemo, useCallback, useRef, useEffect, useState } from 'react';
-import { FixedSizeList as List, ListChildComponentProps, areEqual } from 'react-window';
+import * as ReactWindow from 'react-window';
+const List = ReactWindow.FixedSizeList;
 import { Box, Typography, CircularProgress } from '@mui/material';
 import MessageBubble from './MessageBubble';
 import { Message } from '../types';
@@ -19,8 +20,8 @@ interface VirtualizedMessageListProps {
 interface MessageItemData {
   messages: Message[];
   userId: string;
-  shouldShowAvatar: (index: number) => boolean;
-  shouldShowTimestamp: (index: number) => boolean;
+  shouldShowAvatar: (message: Message, index: number) => boolean;
+  shouldShowTimestamp: (message: Message, index: number) => boolean;
 }
 
 const ITEM_HEIGHT = 80; // Approximate height per message
