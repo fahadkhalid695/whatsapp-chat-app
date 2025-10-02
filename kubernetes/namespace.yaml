@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: chatapp-production
+  labels:
+    name: chatapp-production
+    environment: production

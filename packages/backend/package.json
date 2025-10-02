@@ -23,7 +23,12 @@
     "db:seed:test": "node database/seeds/seed.js seed test",
     "db:clear": "node database/seeds/seed.js clear",
     "db:reset": "node database/seeds/seed.js reset",
-    "db:stats": "node database/seeds/seed.js stats"
+    "db:stats": "node database/seeds/seed.js stats",
+    "type-check": "tsc --noEmit",
+    "docker:build": "docker build -f Dockerfile -t chatapp-backend .",
+    "docker:run": "docker run -p 3000:3000 chatapp-backend",
+    "migrate": "node database/migrations/migrate.js",
+    "seed": "node database/seeds/seed.js"
   },
   "dependencies": {
     "@types/node-cron": "^3.0.11",

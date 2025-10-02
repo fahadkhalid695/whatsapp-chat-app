@@ -36,12 +36,65 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use(compression());
 
 // Health check endpoint
-app.get('/health', (_req, res) => {
-  res.status(200).json({
-    status: 'ok',
-    timestamp: new Date().toISOString(),
-    service: 'whatsapp-chat-backend',
-  });
+app.get('/health', async (_req, res) => {
+  try {
+    // Check database connection
+    await db.query('SELECT 1');
+    
+    // Check Redis connection
+    await redisClient.ping();
+    
+    res.status(200).json({
+      status: 'healthy',
+      timestamp: new Date().toISOString(),
+      service: 'whatsapp-chat-backend',
+      version: process.env.npm_package_version || '1.0.0',
+      uptime: process.uptime(),
+      environment: config.server.nodeEnv,
+      checks: {
+        database: 'healthy',
+        redis: 'healthy'
+      }
+    });
+  } catch (error) {
+    logger.error('Health check failed:', error);
+    res.status(503).json({
+      status: 'unhealthy',
+      timestamp: new Date().toISOString(),
+      service: 'whatsapp-chat-backend',
+      error: 'Service dependencies unavailable'
+    });
+  }
+});
+
+// Metrics endpoint for Prometheus
+app.get('/metrics', (_req, res) => {
+  const memUsage = process.memoryUsage();
+  const cpuUsage = process.cpuUsage();
+  
+  const metrics = `# HELP nodejs_uptime_seconds Process uptime in seconds
+# TYPE nodejs_uptime_seconds counter
+nodejs_uptime_seconds ${process.uptime()}
+
+# HELP nodejs_memory_usage_bytes Memory usage in bytes
+# TYPE nodejs_memory_usage_bytes gauge
+nodejs_memory_usage_bytes{type="rss"} ${memUsage.rss}
+nodejs_memory_usage_bytes{type="heapTotal"} ${memUsage.heapTotal}
+nodejs_memory_usage_bytes{type="heapUsed"} ${memUsage.heapUsed}
+nodejs_memory_usage_bytes{type="external"} ${memUsage.external}
+
+# HELP nodejs_cpu_usage_microseconds CPU usage in microseconds
+# TYPE nodejs_cpu_usage_microseconds counter
+nodejs_cpu_usage_microseconds{type="user"} ${cpuUsage.user}
+nodejs_cpu_usage_microseconds{type="system"} ${cpuUsage.system}
+
+# HELP nodejs_version_info Node.js version info
+# TYPE nodejs_version_info gauge
+nodejs_version_info{version="${process.version}"} 1
+`;
+
+  res.set('Content-Type', 'text/plain');
+  res.send(metrics);
 });
 
 // API routes
