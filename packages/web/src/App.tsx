@@ -3,12 +3,76 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
 import { useAuthStore } from './store/authStore';
-import { socketService } from './services/socket';
-import LoginPage from './pages/LoginPage';
-import VerificationPage from './pages/VerificationPage';
-import ProfileSetupPage from './pages/ProfileSetupPage';
-import ChatPage from './pages/ChatPage';
-// import PerformanceMonitor from './components/PerformanceMonitor';
+
+// Simple placeholder components for now
+const SimplePage = ({ title, children }: { title: string; children: React.ReactNode }) => (
+  <div style={{ padding: '20px', textAlign: 'center' }}>
+    <h1 style={{ color: '#25D366' }}>{title}</h1>
+    {children}
+  </div>
+);
+
+const LoginPage = () => {
+  const { setUser, setToken } = useAuthStore();
+  
+  const handleLogin = () => {
+    // Mock login
+    setToken('mock-token');
+    setUser({
+      id: '1',
+      phoneNumber: '+1234567890',
+      displayName: 'Test User',
+      status: 'Available',
+      lastSeen: new Date(),
+      isOnline: true,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+  };
+  
+  return (
+    <SimplePage title="Login">
+      <p>✅ Login page working!</p>
+      <button 
+        onClick={handleLogin}
+        style={{
+          padding: '12px 24px',
+          backgroundColor: '#25D366',
+          color: 'white',
+          border: 'none',
+          borderRadius: '5px',
+          cursor: 'pointer'
+        }}
+      >
+        Mock Login
+      </button>
+    </SimplePage>
+  );
+};
+
+const ChatPage = () => {
+  const { user, logout } = useAuthStore();
+  
+  return (
+    <SimplePage title="Chat">
+      <p>✅ Welcome, {user?.displayName}!</p>
+      <p>✅ Chat page working!</p>
+      <button 
+        onClick={logout}
+        style={{
+          padding: '8px 16px',
+          backgroundColor: '#dc3545',
+          color: 'white',
+          border: 'none',
+          borderRadius: '5px',
+          cursor: 'pointer'
+        }}
+      >
+        Logout
+      </button>
+    </SimplePage>
+  );
+};
 
 const theme = createTheme({
   palette: {
@@ -23,43 +87,6 @@ const theme = createTheme({
       paper: '#ffffff',
     },
   },
-  typography: {
-    fontFamily: '"Roboto", "Helvetica", "Arial", sans-serif',
-  },
-  breakpoints: {
-    values: {
-      xs: 0,
-      sm: 600,
-      md: 960,
-      lg: 1280,
-      xl: 1920,
-    },
-  },
-  components: {
-    MuiContainer: {
-      styleOverrides: {
-        root: {
-          '@media (max-width: 600px)': {
-            paddingLeft: 8,
-            paddingRight: 8,
-          },
-        },
-      },
-    },
-    MuiAppBar: {
-      styleOverrides: {
-        root: {
-          '@media (max-width: 600px)': {
-            '& .MuiToolbar-root': {
-              minHeight: 56,
-              paddingLeft: 8,
-              paddingRight: 8,
-            },
-          },
-        },
-      },
-    },
-  },
 });
 
 const App: React.FC = () => {
@@ -69,15 +96,15 @@ const App: React.FC = () => {
   
   console.log('🔐 Auth state:', { isAuthenticated, hasToken: !!token, hasUser: !!user });
 
-  useEffect(() => {
-    if (isAuthenticated && token) {
-      socketService.connect();
-    }
-
-    return () => {
-      socketService.disconnect();
-    };
-  }, [isAuthenticated, token]);
+  // Commented out socket connection for now
+  // useEffect(() => {
+  //   if (isAuthenticated && token) {
+  //     socketService.connect();
+  //   }
+  //   return () => {
+  //     socketService.disconnect();
+  //   };
+  // }, [isAuthenticated, token]);
 
   return (
     <ThemeProvider theme={theme}>
@@ -89,14 +116,6 @@ const App: React.FC = () => {
             element={!isAuthenticated ? <LoginPage /> : <Navigate to="/chat" replace />} 
           />
           <Route 
-            path="/verify" 
-            element={!isAuthenticated ? <VerificationPage /> : <Navigate to="/chat" replace />} 
-          />
-          <Route 
-            path="/profile-setup" 
-            element={isAuthenticated && !user?.displayName ? <ProfileSetupPage /> : <Navigate to="/chat" replace />} 
-          />
-          <Route 
             path="/chat" 
             element={isAuthenticated ? <ChatPage /> : <Navigate to="/login" replace />} 
           />
@@ -105,7 +124,6 @@ const App: React.FC = () => {
             element={<Navigate to={isAuthenticated ? "/chat" : "/login"} replace />} 
           />
         </Routes>
-        {/* <PerformanceMonitor /> */}
       </Router>
     </ThemeProvider>
   );
