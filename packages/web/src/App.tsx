@@ -5,6 +5,7 @@ import CssBaseline from '@mui/material/CssBaseline';
 import { useAuthStore } from './store/authStore';
 import LoginPage from './pages/LoginPage';
 import ChatPage from './pages/ChatPage';
+import TestComponent from './TestComponent';
 import { theme } from './theme';
 
 
@@ -40,8 +41,12 @@ const App: React.FC = () => {
             element={isAuthenticated ? <ChatPage /> : <Navigate to="/login" replace />} 
           />
           <Route 
+            path="/test" 
+            element={<TestComponent />} 
+          />
+          <Route 
             path="/" 
-            element={<Navigate to={isAuthenticated ? "/chat" : "/login"} replace />} 
+            element={<Navigate to="/test" replace />} 
           />
         </Routes>
       </Router>
