@@ -63,7 +63,11 @@ const theme = createTheme({
 });
 
 const App: React.FC = () => {
+  console.log('🎯 App component rendering...');
+  
   const { isAuthenticated, token, user } = useAuthStore();
+  
+  console.log('🔐 Auth state:', { isAuthenticated, hasToken: !!token, hasUser: !!user });
 
   useEffect(() => {
     if (isAuthenticated && token) {

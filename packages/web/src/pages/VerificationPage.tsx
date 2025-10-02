@@ -16,6 +16,7 @@ import { useAuthStore } from '../store/authStore';
 
 interface VerificationForm {
   code: string;
+  displayName: string;
 }
 
 const VerificationPage: React.FC = () => {
@@ -47,6 +48,7 @@ const VerificationPage: React.FC = () => {
       const response = await authService.verify({
         verificationId,
         code: data.code,
+        displayName: data.displayName,
       });
       
       setToken(response.token);
@@ -109,6 +111,23 @@ const VerificationPage: React.FC = () => {
           )}
 
           <form onSubmit={handleSubmit(onSubmit)}>
+            <TextField
+              fullWidth
+              label="Display Name"
+              placeholder="Enter your name"
+              {...register('displayName', {
+                required: 'Display name is required',
+                minLength: {
+                  value: 1,
+                  message: 'Display name cannot be empty',
+                },
+              })}
+              error={!!errors.displayName}
+              helperText={errors.displayName?.message}
+              sx={{ mb: 2 }}
+              disabled={isLoading}
+            />
+
             <TextField
               fullWidth
               label="Verification Code"

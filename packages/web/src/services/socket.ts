@@ -229,6 +229,25 @@ class SocketService {
       this.socket.emit('mark-read', messageIds);
     }
   }
+
+  // Add methods for sync service compatibility
+  on(event: string, callback: (data: any) => void) {
+    if (this.socket) {
+      this.socket.on(event, callback);
+    }
+  }
+
+  emit(event: string, data?: any) {
+    if (this.socket) {
+      this.socket.emit(event, data);
+    }
+  }
+
+  off(event: string, callback?: (data: any) => void) {
+    if (this.socket) {
+      this.socket.off(event, callback);
+    }
+  }
 }
 
 export const socketService = new SocketService();

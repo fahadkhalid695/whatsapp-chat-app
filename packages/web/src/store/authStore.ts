@@ -11,7 +11,9 @@ interface AuthStore extends AuthState {
 
 export const useAuthStore = create<AuthStore>()(
   persist(
-    (set) => ({
+    (set) => {
+      console.log('🏪 Initializing auth store...');
+      return {
       user: null,
       token: null,
       isAuthenticated: false,
@@ -34,7 +36,8 @@ export const useAuthStore = create<AuthStore>()(
       }),
       
       setLoading: (isLoading: boolean) => set({ isLoading }),
-    }),
+    };
+    },
     {
       name: 'auth-storage',
       partialize: (state) => ({ 

@@ -1,4 +1,4 @@
-import api from './api';
+import { apiClient } from './api';
 import { User } from '../types';
 
 export interface LoginRequest {
@@ -22,27 +22,36 @@ export interface AuthResponse {
 }
 
 export const authService = {
-  async login(data: LoginRequest): Promise<{ verificationId: string }> {
-    const response = await api.post('/auth/login', data);
+  async login(data: LoginRequest): Promise<{ verificationId: string; message: string }> {
+    const response = await apiClient.post('/auth/verify-phone', data);
     return response.data;
   },
 
-  async verify(data: VerifyRequest): Promise<AuthResponse> {
-    const response = await api.post('/auth/verify', data);
-    return response.data;
+  async verify(data: VerifyRequest & { displayName: string; profilePicture?: string }): Promise<AuthResponse> {
+    const response = await apiClient.post('/auth/verify-code', data);
+    return {
+      token: response.data.tokens.accessToken,
+      refreshToken: response.data.tokens.refreshToken,
+      user: response.data.user,
+    };
   },
 
   async setupProfile(data: ProfileSetupRequest): Promise<User> {
-    const response = await api.post('/auth/profile', data);
+    const response = await apiClient.put('/users/profile', data);
     return response.data;
   },
 
   async refreshToken(refreshToken: string): Promise<{ token: string }> {
-    const response = await api.post('/auth/refresh', { refreshToken });
-    return response.data;
+    const response = await apiClient.post('/auth/refresh', { refreshToken });
+    return { token: response.data.accessToken };
   },
 
   async logout(): Promise<void> {
-    await api.post('/auth/logout');
+    await apiClient.post('/auth/logout');
+  },
+
+  async getCurrentUser(): Promise<User> {
+    const response = await apiClient.get('/auth/me');
+    return response.data;
   },
 };
